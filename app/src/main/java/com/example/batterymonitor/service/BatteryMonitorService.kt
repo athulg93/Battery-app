@@ -29,6 +29,7 @@ class BatteryMonitorService : Service() {
     private var currentSessionId: Long? = null
     private var lastLevel: Int = -1
     private var isCharging: Boolean = false
+    private var lastNotifiedTempThreshold: Int = 0
 
     private val batteryReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
@@ -45,6 +46,20 @@ class BatteryMonitorService : Service() {
         database = AppDatabase.getDatabase(this)
         createNotificationChannel()
         startForeground(NOTIFICATION_ID, createNotification("Monitoring Battery..."))
+
+        // Cleanup stale sessions on startup
+        scope.launch {
+            val incomplete = database.chargeSessionDao().getIncompleteSessions()
+            incomplete.forEach { session ->
+                // Mark as complete but with -1 endLevel to signify it was interrupted
+                val interrupted = session.copy(
+                    isComplete = true,
+                    endTime = System.currentTimeMillis(),
+                    endLevel = -1 
+                )
+                database.chargeSessionDao().updateSession(interrupted)
+            }
+        }
 
         val filter = IntentFilter().apply {
             addAction(Intent.ACTION_BATTERY_CHANGED)
@@ -79,9 +94,21 @@ class BatteryMonitorService : Service() {
         val currentlyCharging = status == BatteryManager.BATTERY_STATUS_CHARGING || 
                                 status == BatteryManager.BATTERY_STATUS_FULL
 
-        // Check for over-temperature warnings (e.g., > 40C / 400 tenths of a degree)
-        if (temp > 400 && currentlyCharging) {
-            sendAlertNotification("High Battery Temperature!", "Battery is at ${temp / 10f}°C while charging. Consider unplugging.")
+        // Check for over-temperature warnings
+        if (currentlyCharging) {
+            val celsius = temp / 10
+            val currentThreshold = (celsius / 5) * 5
+            
+            // Dangerous Temperature Warning (>= 55C)
+            if (celsius >= 55) {
+                sendAlertNotification("🔥 DANGER: CRITICAL TEMPERATURE", "Battery is at $celsius°C! Unplug immediately to prevent damage.")
+                lastNotifiedTempThreshold = currentThreshold // Update to prevent spamming regular notification along with this
+            } 
+            // Regular Threshold-based Notifications (>= 40C, every 5°C)
+            else if (currentThreshold >= 40 && currentThreshold > lastNotifiedTempThreshold) {
+                sendAlertNotification("High Battery Temperature", "Battery has reached $currentThreshold°C while charging.")
+                lastNotifiedTempThreshold = currentThreshold
+            }
         }
 
         // Trickle charge warning if full and still plugged in
@@ -93,6 +120,7 @@ class BatteryMonitorService : Service() {
 
     private fun handlePowerConnected() {
         isCharging = true
+        lastNotifiedTempThreshold = 0
         Log.d("BatteryMonitor", "Power Connected - Starting Session")
         
         val intent = registerReceiver(null, IntentFilter(Intent.ACTION_BATTERY_CHANGED))

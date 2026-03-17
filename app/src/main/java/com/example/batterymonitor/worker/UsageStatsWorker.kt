@@ -4,6 +4,8 @@ import android.app.usage.UsageStatsManager
 import android.content.Context
 import android.util.Log
 import androidx.work.CoroutineWorker
+import androidx.work.OneTimeWorkRequestBuilder
+import androidx.work.WorkManager
 import androidx.work.WorkerParameters
 import com.example.batterymonitor.data.local.AppDatabase
 import com.example.batterymonitor.data.local.AppUsageLog
@@ -47,11 +49,19 @@ class UsageStatsWorker(
         val db = AppDatabase.getDatabase(applicationContext)
         db.appUsageDao().insertUsageLogs(logs)
         
-        // Clean up logs older than 7 days
-        val sevenDaysAgo = endTime - (1000L * 60 * 60 * 24 * 7)
-        db.appUsageDao().clearOldLogs(sevenDaysAgo)
+        // Clean up data older than 5 months (approx 150 days)
+        val fiveMonthsAgo = endTime - (150L * 24 * 60 * 60 * 1000)
+        db.appUsageDao().clearOldLogs(fiveMonthsAgo)
+        db.chargeSessionDao().deleteOldSessions(fiveMonthsAgo)
 
-        Log.d("UsageStatsWorker", "Successfully logged ${logs.size} app usage records")
+        Log.d("UsageStatsWorker", "Successfully logged ${logs.size} app usage records and cleaned up old data")
         return Result.success()
+    }
+
+    companion object {
+        fun runOnce(context: Context) {
+            val workRequest = OneTimeWorkRequestBuilder<UsageStatsWorker>().build()
+            WorkManager.getInstance(context).enqueue(workRequest)
+        }
     }
 }

@@ -1,15 +1,19 @@
 package com.example.batterymonitor.ui.dashboard
 
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.PathEffect
+import androidx.compose.ui.graphics.nativeCanvas
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -19,7 +23,6 @@ import java.text.SimpleDateFormat
 import java.util.*
 import kotlin.math.roundToInt
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DashboardScreen(
     viewModel: DashboardViewModel = viewModel()
@@ -27,171 +30,196 @@ fun DashboardScreen(
     val uiState by viewModel.uiState.collectAsState()
     val sessions by viewModel.sessions.collectAsState()
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text("Battery Monitor", fontWeight = FontWeight.Bold) },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.primaryContainer,
-                    titleContentColor = MaterialTheme.colorScheme.onPrimaryContainer
-                )
-            )
-        }
-    ) { padding ->
-        Column(
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(horizontal = 16.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Spacer(modifier = Modifier.height(16.dp))
+        // Main Status Card
+        Card(
             modifier = Modifier
-                .fillMaxSize()
-                .padding(padding)
-                .padding(16.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
+                .fillMaxWidth()
+                .padding(bottom = 16.dp),
+            elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
+            colors = CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.surface
+            )
         ) {
-            // Main Status Card
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(bottom = 16.dp),
-                elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+            Row(
+                modifier = Modifier.padding(16.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
+                // Large Logo on the Dashboard
+                androidx.compose.foundation.Image(
+                    painter = androidx.compose.ui.res.painterResource(id = com.example.batterymonitor.R.drawable.ic_volt_logo),
+                    contentDescription = null,
+                    modifier = Modifier.size(80.dp)
+                )
+                
+                Spacer(modifier = Modifier.width(16.dp))
+                
                 Column(
-                    modifier = Modifier.padding(16.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    modifier = Modifier.weight(1f)
                 ) {
                     Text(
                         text = "${uiState.level}%",
-                        fontSize = 64.sp,
-                        fontWeight = FontWeight.Bold,
+                        fontSize = 72.sp,
+                        fontWeight = FontWeight.ExtraBold,
                         color = if (uiState.level < 20) Color.Red else MaterialTheme.colorScheme.primary
                     )
                     Text(
                         text = if (uiState.isCharging) "Charging" else "Discharging",
-                        fontSize = 20.sp,
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Bold,
                         color = if (uiState.isCharging) Color(0xFF4CAF50) else Color.Gray
                     )
-                    Spacer(modifier = Modifier.height(16.dp))
-                    
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceAround
-                    ) {
-                        StatItem("Temp", "${uiState.temperature}°C")
-                        StatItem("Voltage", String.format(Locale.US, "%.2f V", uiState.voltage))
-                        StatItem("Health", "${uiState.healthEstimate.roundToInt()}%")
-                    }
-                }
-            }
-
-            // Custom Battery Chart (Canvas) - No libraries used
-            BatteryLevelChart(sessions)
-            
-            Spacer(modifier = Modifier.height(16.dp))
-
-            Text(
-                text = "Recent Charge Sessions",
-                style = MaterialTheme.typography.titleLarge,
-                modifier = Modifier
-                    .align(Alignment.Start)
-                    .padding(vertical = 8.dp)
-            )
-
-            // History List
-            if (sessions.isEmpty()) {
-                Box(modifier = Modifier.fillMaxWidth().height(100.dp), contentAlignment = Alignment.Center) {
-                    Text("No charging sessions recorded yet.", color = Color.Gray)
-                }
-            } else {
-                LazyColumn(modifier = Modifier.heightIn(max = 200.dp)) {
-                    items(sessions) { session ->
-                        SessionItem(session)
-                    }
                 }
             }
             
-            Spacer(modifier = Modifier.height(16.dp))
+            Divider(modifier = Modifier.padding(horizontal = 16.dp), thickness = 0.5.dp, color = Color.LightGray)
             
-            Text(
-                text = "Per-App Battery Drain (Est.)",
-                style = MaterialTheme.typography.titleLarge,
-                modifier = Modifier
-                    .align(Alignment.Start)
-                    .padding(vertical = 8.dp)
-            )
-            
-            val appUsage by viewModel.appUsage.collectAsState()
-            
-            if (appUsage.isEmpty()) {
-                Box(modifier = Modifier.fillMaxWidth().height(100.dp), contentAlignment = Alignment.Center) {
-                    Text("No usage data available (Grant permission or wait)", color = Color.Gray)
-                }
-            } else {
-                LazyColumn(modifier = Modifier.heightIn(max = 300.dp)) {
-                    items(appUsage) { usage ->
-                        AppUsageItem(usage)
-                    }
-                }
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(16.dp),
+                horizontalArrangement = Arrangement.SpaceAround
+            ) {
+                StatItem("Temp", "${uiState.temperature}°C")
+                StatItem("Voltage", String.format(Locale.US, "%.2f V", uiState.voltage))
+                StatItem("Health", "${uiState.healthEstimate.roundToInt()}%")
             }
         }
+
+        Text(
+            text = "Charging Trends",
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Bold,
+            modifier = Modifier.padding(vertical = 12.dp).fillMaxWidth()
+        )
+        
+        // New Mixed Chart
+        MixedBatteryChart(sessions)
+        
+        Spacer(modifier = Modifier.weight(1f))
+        
+        Text(
+            "Tip: Keep battery between 20-80% for longevity.",
+            style = MaterialTheme.typography.bodySmall,
+            color = Color.Gray,
+            modifier = Modifier.padding(bottom = 16.dp)
+        )
     }
 }
 
 @Composable
-fun BatteryLevelChart(sessions: List<ChargeSession>) {
-    if (sessions.isEmpty()) return
-    
-    // Simplistic canvas bar chart showing charge amounts
-    androidx.compose.foundation.Canvas(
+fun MixedBatteryChart(sessions: List<ChargeSession>) {
+    val displaySessions = sessions.filter { it.isComplete && it.endLevel != -1 }.take(7).reversed()
+    if (displaySessions.isEmpty()) {
+        Box(modifier = Modifier.fillMaxWidth().height(220.dp), contentAlignment = Alignment.Center) {
+            Text("No comparative data available yet.", color = Color.Gray)
+        }
+        return
+    }
+
+    val primaryColor = MaterialTheme.colorScheme.primary
+    val secondaryColor = MaterialTheme.colorScheme.secondary
+    val labelColor = MaterialTheme.colorScheme.onSurface.toArgb()
+
+    Canvas(
         modifier = Modifier
             .fillMaxWidth()
-            .height(100.dp)
-            .padding(16.dp)
+            .height(220.dp)
+            .padding(top = 24.dp, bottom = 12.dp, start = 40.dp, end = 16.dp)
     ) {
         val width = size.width
         val height = size.height
-        val maxItems = sessions.size.coerceAtMost(10)
-        val barWidth = width / (maxItems * 1.5f)
-        val primaryColor = Color(0xFF6650a4)
+        val spacing = width / (displaySessions.size.coerceAtLeast(1))
         
-        val recentSessions = sessions.take(maxItems).reversed()
-        recentSessions.forEachIndexed { index, session ->
-            val chargeAmount = if (session.isComplete) (session.endLevel - session.startLevel).coerceAtLeast(0) else 0
-            val barHeight = (chargeAmount / 100f) * height
-            
-            val x = index * (width / maxItems)
-            val y = height - barHeight
-            
-            drawRect(
-                color = primaryColor,
-                topLeft = androidx.compose.ui.geometry.Offset(x, y),
-                size = androidx.compose.ui.geometry.Size(barWidth, barHeight)
+        // Draw Y-axis labels and grid
+        val levels = listOf(0, 50, 100)
+        levels.forEach { level ->
+            val y = height - (level / 100f * height)
+            drawLine(
+                color = Color.LightGray.copy(alpha = 0.3f),
+                start = Offset(0f, y),
+                end = Offset(width, y),
+                strokeWidth = 1.dp.toPx()
+            )
+            drawContext.canvas.nativeCanvas.drawText(
+                "$level%",
+                -35.dp.toPx(),
+                y + 5.dp.toPx(),
+                android.graphics.Paint().apply {
+                    color = labelColor
+                    textSize = 10.sp.toPx()
+                    alpha = 150
+                }
             )
         }
-    }
-}
 
-@Composable
-fun AppUsageItem(usage: AppUsageSummary) {
-    // Constraint: Any app/service exceeding 40% usage must be highlighted in Red.
-    val usageColor = if (usage.estimatedDrainPct > 40f) Color.Red else MaterialTheme.colorScheme.onSurface
+        displaySessions.forEachIndexed { index, session ->
+            val x = index * spacing + (spacing / 2)
+            val yStart = height - (session.startLevel / 100f * height)
+            val yEnd = height - (session.endLevel / 100f * height)
 
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 8.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        // Strip off the long java package prefix for readability if it's there
-        val simpleName = usage.packageName.substringAfterLast(".") 
-        
-        Text(
-            text = simpleName.take(20), // truncate if too long
-            fontWeight = FontWeight.Medium,
-            color = usageColor
-        )
-        Text(
-            text = String.format("%.1f %%", usage.estimatedDrainPct),
-            fontWeight = FontWeight.Bold,
-            color = usageColor
-        )
+            // Draw Bar (Gain)
+            if (session.endLevel > session.startLevel) {
+                drawRect(
+                    color = primaryColor.copy(alpha = 0.15f),
+                    topLeft = Offset(x - 10.dp.toPx(), yEnd),
+                    size = Size(20.dp.toPx(), (yStart - yEnd).coerceAtLeast(1f))
+                )
+            }
+
+            // Draw Line for the session
+            drawLine(
+                color = primaryColor,
+                start = Offset(x, yStart),
+                end = Offset(x, yEnd),
+                strokeWidth = 3.dp.toPx()
+            )
+            
+            // Dots at start and end
+            drawCircle(color = secondaryColor, radius = 4.dp.toPx(), center = Offset(x, yStart))
+            drawCircle(color = primaryColor, radius = 4.dp.toPx(), center = Offset(x, yEnd))
+            
+            // Labels
+            drawContext.canvas.nativeCanvas.drawText(
+                "${session.startLevel}%",
+                x - 12.dp.toPx(),
+                yStart + 15.dp.toPx(),
+                android.graphics.Paint().apply {
+                    color = labelColor
+                    textSize = 8.sp.toPx()
+                }
+            )
+            drawContext.canvas.nativeCanvas.drawText(
+                "${session.endLevel}%",
+                x - 12.dp.toPx(),
+                yEnd - 10.dp.toPx(),
+                android.graphics.Paint().apply {
+                    color = labelColor
+                    textSize = 9.sp.toPx()
+                    isFakeBoldText = true
+                }
+            )
+
+            // Connection Logic: Link end of this session to start of next session (Discharge)
+            if (index < displaySessions.size - 1) {
+                val nextSession = displaySessions[index + 1]
+                val nextX = (index + 1) * spacing + (spacing / 2)
+                val nextYStart = height - (nextSession.startLevel / 100f * height)
+                
+                drawLine(
+                    color = Color.Gray.copy(alpha = 0.3f),
+                    start = Offset(x, yEnd),
+                    end = Offset(nextX, nextYStart),
+                    strokeWidth = 1.dp.toPx(),
+                    pathEffect = PathEffect.dashPathEffect(floatArrayOf(12f, 12f), 0f)
+                )
+            }
+        }
     }
 }
 
@@ -199,40 +227,6 @@ fun AppUsageItem(usage: AppUsageSummary) {
 fun StatItem(label: String, value: String) {
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
         Text(text = label, color = Color.Gray, fontSize = 14.sp)
-        Text(text = value, fontWeight = FontWeight.SemiBold, fontSize = 18.sp)
-    }
-}
-
-@Composable
-fun SessionItem(session: ChargeSession) {
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 4.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant
-        )
-    ) {
-        Column(modifier = Modifier.padding(12.dp)) {
-            val format = SimpleDateFormat("MMM dd, HH:mm", Locale.getDefault())
-            val dateStr = format.format(Date(session.startTime))
-            
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Text(text = dateStr, fontWeight = FontWeight.Bold)
-                if (session.isComplete) {
-                    Text(text = "+${session.endLevel - session.startLevel}%", color = Color(0xFF4CAF50))
-                } else {
-                    Text(text = "In Progress...", color = Color(0xFFFFA000))
-                }
-            }
-            Spacer(modifier = Modifier.height(4.dp))
-            Text(
-                text = "From ${session.startLevel}% to ${if (session.isComplete) session.endLevel else "?"}%",
-                fontSize = 14.sp
-            )
-        }
+        Text(text = value, fontWeight = FontWeight.Bold, fontSize = 18.sp, color = MaterialTheme.colorScheme.onSurface)
     }
 }

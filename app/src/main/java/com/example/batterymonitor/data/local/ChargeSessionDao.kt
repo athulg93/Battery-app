@@ -19,4 +19,13 @@ interface ChargeSessionDao {
     
     @Query("SELECT * FROM charge_sessions ORDER BY startTime DESC LIMIT 1")
     suspend fun getLastSession(): ChargeSession?
+
+    @Query("SELECT * FROM charge_sessions WHERE isComplete = 0")
+    suspend fun getIncompleteSessions(): List<ChargeSession>
+
+    @Query("SELECT * FROM charge_sessions WHERE endLevel = 100 ORDER BY startTime DESC LIMIT 1")
+    suspend fun getLastFullCharge(): ChargeSession?
+
+    @Query("DELETE FROM charge_sessions WHERE startTime < :threshold")
+    suspend fun deleteOldSessions(threshold: Long)
 }

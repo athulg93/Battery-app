@@ -14,6 +14,9 @@ interface AppUsageDao {
     @Query("SELECT * FROM app_usage_logs WHERE timestamp >= :since ORDER BY foregroundTimeMs DESC")
     fun getUsageSince(since: Long): Flow<List<AppUsageLog>>
     
+    @Query("SELECT * FROM app_usage_logs WHERE timestamp >= :since")
+    suspend fun getUsageSinceTime(since: Long): List<AppUsageLog>
+    
     @Query("DELETE FROM app_usage_logs WHERE timestamp < :olderThan")
     suspend fun clearOldLogs(olderThan: Long)
 }

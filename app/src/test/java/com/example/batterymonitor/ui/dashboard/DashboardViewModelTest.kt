@@ -30,6 +30,8 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
+import androidx.test.core.app.ApplicationProvider
+import io.mockk.spyk
 
 @OptIn(ExperimentalCoroutinesApi::class)
 @RunWith(RobolectricTestRunner::class)
@@ -50,7 +52,8 @@ class DashboardViewModelTest {
     fun setup() {
         Dispatchers.setMain(testDispatcher)
 
-        application = mockk(relaxed = true)
+        application = ApplicationProvider.getApplicationContext<Application>()
+        
         mockDatabase = mockk(relaxed = true)
         mockAppUsageDao = mockk(relaxed = true)
         mockChargeSessionDao = mockk(relaxed = true)
@@ -119,18 +122,22 @@ class DashboardViewModelTest {
     }
 
     @Test
-    fun `calculateBatteryHealth penalizes deep discharges returning less than 100`() = runTest {
+    fun `calculateBatteryHealth penalizes deep discharges based on cycles`() = runTest {
         val badCycleSession = ChargeSession(
-            startLevel = 10,   // deep discharge penalty 0.1
-            endLevel = 100,    // high charge penalty 0.05
+            startLevel = 10,   // deep discharge penalty 0.02 added to factor
+            endLevel = 100,    // 90% charge = 0.9 cycles
             startTemperature = 300,
-            endTemperature = 450, // high heat penalty 0.2
+            endTemperature = 460, // high heat penalty 0.05 added to factor (>45C)
             startTime = 0,
             endTime = 1000,
             isComplete = true,
             startVoltage = 3800,
             endVoltage = 4200
         )
+        // Cycles = 0.9
+        // PenaltyFactor = 1.0 (base) + 0.02 (deep) + 0.05 (heat) = 1.07
+        // Degradation = 0.9 (cycles) * 0.05f (loss/cycle) * 1.07 (penalty) = 0.04815
+        val expectedHealth = 100f - (0.9f * 0.05f * 1.07f)
         
         every { mockChargeSessionDao.getAllSessions() } returns flowOf(listOf(badCycleSession))
 
@@ -139,7 +146,6 @@ class DashboardViewModelTest {
 
         val health = viewModel.uiState.value.healthEstimate
 
-        // Expect 100 - 0.1 - 0.05 - 0.2 = 99.65
-        assertEquals(99.65f, health, 0.01f)
+        assertEquals(expectedHealth, health, 0.001f)
     }
 }
