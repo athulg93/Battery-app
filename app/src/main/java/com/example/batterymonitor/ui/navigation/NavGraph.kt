@@ -44,8 +44,7 @@ fun BatteryNavGraph(
         ) { backStackEntry ->
             val packageName = backStackEntry.arguments?.getString("packageName") ?: ""
             com.example.batterymonitor.ui.appdetail.AppDetailScreen(
-                packageName = packageName,
-                onBack = { navController.popBackStack() }
+                packageName = packageName
             )
         }
     }

@@ -7,6 +7,7 @@ import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.activity.compose.BackHandler
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -15,6 +16,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material3.*
+import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -46,52 +48,18 @@ class MainActivity : ComponentActivity() {
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        val splashScreen = installSplashScreen()
         super.onCreate(savedInstanceState)
         
         checkAndRequestPermissions()
 
         setContent {
             VoltMonitorTheme {
-                var showSplash by remember { mutableStateOf(true) }
-                
-                LaunchedEffect(Unit) {
-                    delay(2500) // Slightly longer splash for the premium feel
-                    showSplash = false
-                }
-
-                if (showSplash) {
-                    SplashScreen()
-                } else {
-                    MainAppContent()
-                }
+                MainAppContent()
             }
         }
     }
 
-    @Composable
-    fun SplashScreen() {
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(MaterialTheme.colorScheme.background),
-            contentAlignment = Alignment.Center
-        ) {
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Image(
-                    painter = painterResource(id = R.drawable.ic_volt_logo),
-                    contentDescription = "Volt Logo",
-                    modifier = Modifier.size(150.dp)
-                )
-                Spacer(modifier = Modifier.height(24.dp))
-                Text(
-                    text = "Volt Monitor",
-                    fontSize = 32.sp,
-                    fontWeight = FontWeight.ExtraBold,
-                    color = MaterialTheme.colorScheme.primary
-                )
-            }
-        }
-    }
 
     @OptIn(ExperimentalMaterial3Api::class)
     @Composable
@@ -105,6 +73,13 @@ class MainActivity : ComponentActivity() {
         
         val items = listOf(Screen.Dashboard, Screen.AppUsage, Screen.History)
         
+        // Handle back press to close drawer
+        if (drawerState.isOpen) {
+            BackHandler {
+                scope.launch { drawerState.close() }
+            }
+        }
+
         val title = when (currentRoute) {
             Screen.Dashboard.route -> Screen.Dashboard.title
             Screen.AppUsage.route -> Screen.AppUsage.title
@@ -124,9 +99,8 @@ class MainActivity : ComponentActivity() {
                             modifier = Modifier.padding(24.dp).fillMaxWidth(),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Image(
-                                painter = painterResource(id = R.drawable.ic_volt_logo),
-                                contentDescription = null,
+                            com.example.batterymonitor.ui.components.DynamicBatteryLogo(
+                                level = 100, // Drawer logo shows full for branding
                                 modifier = Modifier.size(48.dp)
                             )
                             Spacer(Modifier.width(16.dp))

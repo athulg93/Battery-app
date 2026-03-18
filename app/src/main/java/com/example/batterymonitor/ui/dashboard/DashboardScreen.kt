@@ -11,6 +11,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.graphics.toArgb
@@ -19,6 +20,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.batterymonitor.data.local.ChargeSession
+import com.example.batterymonitor.ui.components.DynamicBatteryLogo
 import java.text.SimpleDateFormat
 import java.util.*
 import kotlin.math.roundToInt
@@ -51,10 +53,9 @@ fun DashboardScreen(
                 modifier = Modifier.padding(16.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // Large Logo on the Dashboard
-                androidx.compose.foundation.Image(
-                    painter = androidx.compose.ui.res.painterResource(id = com.example.batterymonitor.R.drawable.ic_volt_logo),
-                    contentDescription = null,
+                // Dynamic Battery Logo with 5% Stepped Clipping
+                DynamicBatteryLogo(
+                    level = uiState.level,
                     modifier = Modifier.size(80.dp)
                 )
                 
@@ -219,6 +220,18 @@ fun MixedBatteryChart(sessions: List<ChargeSession>) {
                     pathEffect = PathEffect.dashPathEffect(floatArrayOf(12f, 12f), 0f)
                 )
             }
+
+            // Draw X-axis Time Label
+            val timeStr = SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date(session.startTime))
+            drawContext.canvas.nativeCanvas.drawText(
+                timeStr,
+                x - 15.dp.toPx(),
+                height + 15.dp.toPx(),
+                android.graphics.Paint().apply {
+                    color = labelColor
+                    textSize = 8.sp.toPx()
+                }
+            )
         }
     }
 }

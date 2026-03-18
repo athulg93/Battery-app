@@ -23,6 +23,9 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.batterymonitor.ui.dashboard.AppUsageSummary
 import com.example.batterymonitor.ui.dashboard.DashboardViewModel
 import kotlinx.coroutines.delay
+import coil.compose.AsyncImage
+import coil.request.ImageRequest
+import androidx.compose.ui.res.painterResource
 
 @Composable
 fun AppUsageScreen(
@@ -31,7 +34,6 @@ fun AppUsageScreen(
 ) {
     val appUsage by viewModel.appUsage.collectAsState()
     val context = LocalContext.current
-    val packageManager = context.packageManager
 
     LaunchedEffect(Unit) {
         while (true) {
@@ -69,23 +71,14 @@ fun AppUsageScreen(
                 modifier = Modifier.fillMaxSize(),
                 contentPadding = PaddingValues(bottom = 24.dp)
             ) {
-                items(appUsage) { usage ->
-                    val appInfo = remember(usage.packageName) {
-                        try {
-                            val info = packageManager.getApplicationInfo(usage.packageName, 0)
-                            val label = packageManager.getApplicationLabel(info).toString()
-                            val icon = packageManager.getApplicationIcon(info)
-                            label to icon
-                        } catch (e: Exception) {
-                            usage.packageName.substringAfterLast(".") to null
-                        }
-                    }
-
+                items(
+                    items = appUsage,
+                    key = { it.packageName }
+                ) { usage ->
                     AppUsageCard(
-                        name = appInfo.first,
+                        name = usage.label,
                         packageName = usage.packageName,
-                        drainPct = usage.estimatedDrainPct,
-                        icon = appInfo.second
+                        drainPct = usage.estimatedDrainPct
                     ) {
                         onAppClick(usage.packageName)
                     }
@@ -100,9 +93,10 @@ fun AppUsageCard(
     name: String,
     packageName: String,
     drainPct: Float,
-    icon: android.graphics.drawable.Drawable?,
     onClick: () -> Unit
 ) {
+    val context = LocalContext.current
+    
     Card(
         modifier = Modifier
             .fillMaxWidth()
@@ -119,30 +113,28 @@ fun AppUsageCard(
                 .fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            if (icon != null) {
-                androidx.compose.ui.viewinterop.AndroidView(
-                    factory = { context ->
-                        android.widget.ImageView(context).apply {
-                            setImageDrawable(icon)
-                        }
-                    },
-                    modifier = Modifier.size(48.dp)
-                )
-            } else {
-                Surface(
-                    modifier = Modifier.size(48.dp),
-                    shape = MaterialTheme.shapes.medium,
-                    color = MaterialTheme.colorScheme.primaryContainer
-                ) {
-                    Box(contentAlignment = Alignment.Center) {
-                        Text(
-                            name.take(1).uppercase(),
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onPrimaryContainer
-                        )
-                    }
+            var appIcon by remember { mutableStateOf<android.graphics.drawable.Drawable?>(null) }
+            
+            LaunchedEffect(packageName) {
+                try {
+                    val info = context.packageManager.getApplicationInfo(packageName, 0)
+                    appIcon = context.packageManager.getApplicationIcon(info)
+                } catch (e: Exception) {
+                    // Fallback to placeholder already set in error/fallback
                 }
             }
+
+            // Asynchronous Icon Loading with Coil
+            AsyncImage(
+                model = ImageRequest.Builder(context)
+                    .data(appIcon ?: com.example.batterymonitor.R.drawable.ic_battery_placeholder)
+                    .crossfade(true)
+                    .build(),
+                contentDescription = null,
+                modifier = Modifier.size(48.dp),
+                error = painterResource(id = com.example.batterymonitor.R.drawable.ic_battery_placeholder),
+                fallback = painterResource(id = com.example.batterymonitor.R.drawable.ic_battery_placeholder)
+            )
             
             Spacer(modifier = Modifier.width(16.dp))
             

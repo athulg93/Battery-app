@@ -37,6 +37,7 @@ data class BatteryStateUi(
 
 data class AppUsageSummary(
     val packageName: String,
+    val label: String,
     val estimatedDrainPct: Float,
     val foregroundTimeMs: Long
 )
@@ -51,7 +52,8 @@ data class DetailedAppStats(
     val wakeLockEstimate: Int = 0,
     val sevenDayAverageDrain: Float = 0f,
     val dailyTrend: List<Pair<String, Float>> = emptyList(), // Day Label to Drain%
-    val hasAnomaly: Boolean = false,
+    val daysOfData: Int = 0,
+    val anomalyType: String? = null,
     val sotImpactPct: Float = 0f
 )
 
@@ -93,9 +95,12 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
         }
     }
 
+    private val labelCache = mutableMapOf<String, String>()
+
     private fun calculateUsagePercentages(logs: List<AppUsageLog>): List<AppUsageSummary> {
         if (logs.isEmpty()) return emptyList()
 
+        val packageManager = getApplication<Application>().packageManager
         // Group by package across multiple worker polls
         val grouped = logs.groupBy { it.packageName }
         val aggregated = grouped.mapValues { entry -> 
@@ -105,8 +110,18 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
         val totalForegroundTimeMs = aggregated.values.sum().coerceAtLeast(1) // prevent div by zero
 
         return aggregated.map { (pkg, timeMs) ->
+            val cachedLabel = labelCache[pkg] ?: try {
+                val info = packageManager.getApplicationInfo(pkg, 0)
+                val label = packageManager.getApplicationLabel(info).toString()
+                labelCache[pkg] = label
+                label
+            } catch (e: Exception) {
+                pkg.substringAfterLast(".")
+            }
+
             AppUsageSummary(
                 packageName = pkg,
+                label = cachedLabel,
                 estimatedDrainPct = (timeMs.toFloat() / totalForegroundTimeMs) * 100f,
                 foregroundTimeMs = timeMs
             )
@@ -201,7 +216,7 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
         return (appTime.toFloat() / totalTime) * 100f
     }
 
-    suspend fun getDetailedStatsForApp(packageName: String): DetailedAppStats {
+    suspend fun getDetailedStatsForApp(packageName: String): DetailedAppStats = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
         val appContext = getApplication<Application>()
         val usageStatsManager = appContext.getSystemService(Context.USAGE_STATS_SERVICE) as UsageStatsManager
         val networkStatsManager = appContext.getSystemService(Context.NETWORK_STATS_SERVICE) as NetworkStatsManager
@@ -290,8 +305,6 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
             
             // Heuristic: Max consumption log for that day (since my logs are cumulative/snapshots)
             val dayDrain = if (dayLogs.isNotEmpty()) {
-                // In a real scenario, we'd sum diffs, but here max() represents the "end of day" total for that app's sessions
-                // To be accurate with %: we use getAppUsageSince for that specific 24h window
                 getAppUsageSince(packageName, dayStart.timeInMillis, dayEnd.timeInMillis)
             } else 0f
             
@@ -301,17 +314,30 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
         val averageDrain = if (dailyTrend.isNotEmpty()) dailyTrend.map { it.second }.average().toFloat() else 0f
         val current24hDrain = getAppUsageSince(packageName, startTime24h)
         val backgroundDrain = (backgroundTime.toFloat() / totalActiveTime.coerceAtLeast(1)) * current24hDrain
-        val totalImpactSinceCharge = getAppUsageSince(packageName, viewModelScope.run { getLastChargeTime() })
-
-        // Intelligent Anomaly Detection
-        val hasAnomaly = (backgroundDrain > 3f) || // Condition 1: High Background Drain
-                         (averageDrain > 0 && current24hDrain > (averageDrain * 1.5f)) || // Condition 2: Abnormal Drain Rate
-                         (totalImpactSinceCharge > 15f) // Condition 3: Massive Hog
+        val daysOfData = dailyTrend.count { it.second > 0 }
+        
+        // Sequential Anomaly Evaluation (Priority 1 to 4)
+        val anomalyType: String? = when {
+            // 1. The Noise Filter (Absolute Minimum Floor)
+            current24hDrain < 1.5f -> null
+            
+            // 2. The Background Rogue (Critical Drain)
+            backgroundDrain > 4f -> "High background activity"
+            
+            // 3. The Cold Start / Absolute Hog (Insufficient Historical Data)
+            daysOfData < 3 && current24hDrain > 10f -> "Heavy battery usage detected"
+            
+            // 4. The Historical Spike (Sufficient Data Available)
+            daysOfData >= 3 && current24hDrain > (averageDrain * 1.5f) -> "Using significantly more battery than usual"
+            
+            // 5. Default Fallback (Normal Operation)
+            else -> null
+        }
 
         // SOT Impact: Share of total device screen time
         val sotImpact = if (totalDeviceSOT > 0) (foregroundTime.toFloat() / totalDeviceSOT) * 100 else 0f
 
-        return DetailedAppStats(
+        DetailedAppStats(
             foregroundTimeMs = foregroundTime,
             backgroundTimeMs = backgroundTime,
             foregroundDrainPct = (foregroundTime.toFloat() / totalActiveTime.coerceAtLeast(1)) * current24hDrain,
@@ -321,7 +347,8 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
             wakeLockEstimate = estWakeLocks,
             sevenDayAverageDrain = averageDrain,
             dailyTrend = dailyTrend,
-            hasAnomaly = hasAnomaly,
+            daysOfData = daysOfData,
+            anomalyType = anomalyType,
             sotImpactPct = sotImpact
         )
     }

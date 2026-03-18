@@ -14,3 +14,5 @@
 .cxx
 local.properties
 app/build/
+volt_monitor.jks
+keystore.properties

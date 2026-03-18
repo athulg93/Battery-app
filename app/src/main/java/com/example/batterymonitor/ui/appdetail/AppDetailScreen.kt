@@ -5,10 +5,13 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.clickable
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -35,6 +38,7 @@ fun AppDetailScreen(
     var appIcon by remember { mutableStateOf<Drawable?>(null) }
     var detailedStats by remember { mutableStateOf<com.example.batterymonitor.ui.dashboard.DetailedAppStats?>(null) }
     var isLoading by remember { mutableStateOf(true) }
+    var selectedMetric by remember { mutableStateOf<MetricInfo?>(null) }
 
     LaunchedEffect(packageName) {
         try {
@@ -47,6 +51,13 @@ fun AppDetailScreen(
         isLoading = false
     }
 
+    if (selectedMetric != null) {
+        MetricDetailModal(
+            metric = selectedMetric!!,
+            onDismiss = { selectedMetric = null }
+        )
+    }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -55,16 +66,18 @@ fun AppDetailScreen(
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         // App Header
-        if (appIcon != null) {
-            AndroidView(
-                factory = { ctx ->
-                    android.widget.ImageView(ctx).apply {
-                        setImageDrawable(appIcon)
-                    }
-                },
-                modifier = Modifier.size(80.dp)
-            )
-        }
+        // App Header
+        androidx.compose.ui.res.painterResource(id = com.example.batterymonitor.R.drawable.ic_battery_placeholder)
+        coil.compose.AsyncImage(
+            model = coil.request.ImageRequest.Builder(context)
+                .data(appIcon ?: com.example.batterymonitor.R.drawable.ic_battery_placeholder)
+                .crossfade(true)
+                .build(),
+            contentDescription = null,
+            modifier = androidx.compose.ui.Modifier.size(80.dp),
+            error = androidx.compose.ui.res.painterResource(id = com.example.batterymonitor.R.drawable.ic_battery_placeholder),
+            fallback = androidx.compose.ui.res.painterResource(id = com.example.batterymonitor.R.drawable.ic_battery_placeholder)
+        )
         
         Spacer(modifier = Modifier.height(12.dp))
         
@@ -81,8 +94,8 @@ fun AppDetailScreen(
             val stats = detailedStats!!
             
             // 0. Anomaly Alert & Status
-            if (stats.hasAnomaly) {
-                AnomalyWarning()
+            if (stats.anomalyType != null) {
+                AnomalyWarning(stats.anomalyType)
             } else {
                 NormalStatus()
             }
@@ -92,7 +105,7 @@ fun AppDetailScreen(
             Text("Activity & Drain Split", modifier = Modifier.fillMaxWidth(), fontWeight = FontWeight.Bold, fontSize = 16.sp)
             Spacer(modifier = Modifier.height(8.dp))
             AnalysisCard {
-                TimeSplitContent(stats)
+                TimeSplitContent(stats) { metric -> selectedMetric = metric }
             }
             
             Spacer(modifier = Modifier.height(20.dp))
@@ -101,7 +114,7 @@ fun AppDetailScreen(
             Text("Hardware Resource Impact", modifier = Modifier.fillMaxWidth(), fontWeight = FontWeight.Bold, fontSize = 16.sp)
             Spacer(modifier = Modifier.height(8.dp))
             AnalysisCard {
-                HardwareStatsContent(stats)
+                HardwareStatsContent(stats) { metric -> selectedMetric = metric }
             }
             
             Spacer(modifier = Modifier.height(20.dp))
@@ -110,7 +123,7 @@ fun AppDetailScreen(
             Text("7-Day Consumption Trend", modifier = Modifier.fillMaxWidth(), fontWeight = FontWeight.Bold, fontSize = 16.sp)
             Spacer(modifier = Modifier.height(8.dp))
             AnalysisCard {
-                TrendContent(stats)
+                TrendContent(stats) { metric -> selectedMetric = metric }
             }
             
             Spacer(modifier = Modifier.height(32.dp))
@@ -147,46 +160,160 @@ fun AnalysisCard(content: @Composable () -> Unit) {
 }
 
 @Composable
-fun TimeSplitContent(stats: com.example.batterymonitor.ui.dashboard.DetailedAppStats) {
+fun TimeSplitContent(
+    stats: com.example.batterymonitor.ui.dashboard.DetailedAppStats,
+    onMetricClick: (MetricInfo) -> Unit
+) {
     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
         Column(modifier = Modifier.weight(1f)) {
-            StatItemSmall("Foreground Time", formatTime(stats.foregroundTimeMs))
-            StatItemSmall("Foreground Drain", String.format("%.1f%%", stats.foregroundDrainPct))
+            StatItemSmall(
+                label = "Foreground Time", 
+                value = formatTime(stats.foregroundTimeMs),
+                onClick = {
+                    onMetricClick(MetricInfo(
+                        "Foreground Time",
+                        formatTime(stats.foregroundTimeMs),
+                        "Time the app was actively visible and used on your screen. This is usually when the app consumes the most battery."
+                    ))
+                }
+            )
+            StatItemSmall(
+                label = "Foreground Drain", 
+                value = String.format("%.1f%%", stats.foregroundDrainPct),
+                onClick = {
+                    onMetricClick(MetricInfo(
+                        "Foreground Drain",
+                        String.format("%.1f%%", stats.foregroundDrainPct),
+                        "Estimated battery percentage consumed while the app was active on screen."
+                    ))
+                }
+            )
         }
         Divider(modifier = Modifier.width(1.dp).height(60.dp).padding(vertical = 4.dp))
         Spacer(Modifier.width(16.dp))
         Column(modifier = Modifier.weight(1f)) {
-            StatItemSmall("Background Time", formatTime(stats.backgroundTimeMs))
-            StatItemSmall("Background Drain", String.format("%.1f%%", stats.backgroundDrainPct))
+            StatItemSmall(
+                label = "Background Time", 
+                value = formatTime(stats.backgroundTimeMs),
+                onClick = {
+                    onMetricClick(MetricInfo(
+                        "Background Time",
+                        formatTime(stats.backgroundTimeMs),
+                        "Time the app was running silently while you were using other apps or while the screen was off. High background time can lead to unexpected drain."
+                    ))
+                }
+            )
+            StatItemSmall(
+                label = "Background Drain", 
+                value = String.format("%.1f%%", stats.backgroundDrainPct),
+                onClick = {
+                    onMetricClick(MetricInfo(
+                        "Background Drain",
+                        String.format("%.1f%%", stats.backgroundDrainPct),
+                        "Estimated battery percentage consumed while the app was running in the background. Reducing this helps improve standby battery life."
+                    ))
+                }
+            )
         }
     }
 }
 
 @Composable
-fun HardwareStatsContent(stats: com.example.batterymonitor.ui.dashboard.DetailedAppStats) {
+fun HardwareStatsContent(
+    stats: com.example.batterymonitor.ui.dashboard.DetailedAppStats,
+    onMetricClick: (MetricInfo) -> Unit
+) {
     Column {
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            StatItemSmall("CPU Intensity", String.format("%.1f%%", stats.cpuIntensityScore))
-            StatItemSmall("Network Usage", formatDynamicBytes(stats.networkUsageBytes))
+            StatItemSmall(
+                label = "CPU Intensity", 
+                value = String.format("%.1f%%", stats.cpuIntensityScore),
+                onClick = {
+                    onMetricClick(MetricInfo(
+                        "CPU Intensity",
+                        String.format("%.1f%%", stats.cpuIntensityScore),
+                        "Measures how much the app's processing tasks are working the phone's CPU. Higher intensity means more heat and faster battery drain."
+                    ))
+                }
+            )
+            StatItemSmall(
+                label = "Network Usage", 
+                value = formatDynamicBytes(stats.networkUsageBytes),
+                onClick = {
+                    onMetricClick(MetricInfo(
+                        "Network Usage",
+                        formatDynamicBytes(stats.networkUsageBytes),
+                        "Total data sent and received by the app. Constant data sync, especially over cellular, can significantly impact battery."
+                    ))
+                }
+            )
         }
         Spacer(modifier = Modifier.height(8.dp))
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
             val wakeLockText = if (stats.wakeLockEstimate == 0) "0 (App allows deep sleep)" else "${stats.wakeLockEstimate}"
-            StatItemSmall("Est. Wake Locks", wakeLockText)
-            StatItemSmall("SOT Impact", String.format("%.1f%%", stats.sotImpactPct))
+            StatItemSmall(
+                label = "Est. Wake Locks", 
+                value = wakeLockText,
+                onClick = {
+                    onMetricClick(MetricInfo(
+                        "Est. Wake Locks",
+                        wakeLockText,
+                        "Number of times the app prevented your phone from entering 'Deep Sleep'. Frequent wake locks (like music or background tracking) are a common cause of idle drain."
+                    ))
+                }
+            )
+            StatItemSmall(
+                label = "SOT Impact", 
+                value = String.format("%.1f%%", stats.sotImpactPct),
+                onClick = {
+                    onMetricClick(MetricInfo(
+                        "SOT Impact",
+                        String.format("%.1f%%", stats.sotImpactPct),
+                        "Percentage of your total Screen-On Time (since last charge) that was used by this specific app."
+                    ))
+                }
+            )
         }
         Spacer(modifier = Modifier.height(12.dp))
-        LinearProgressIndicator(
-            progress = (stats.cpuIntensityScore / 100f).coerceIn(0f, 1f),
-            modifier = Modifier.fillMaxWidth().height(8.dp),
-            strokeCap = androidx.compose.ui.graphics.StrokeCap.Round
-        )
-        Text("CPU utilization estimation (Active sessions)", fontSize = 10.sp, color = Color.Gray, modifier = Modifier.padding(top = 4.dp))
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable {
+                    onMetricClick(MetricInfo(
+                        "CPU Intensity",
+                        String.format("%.1f%%", stats.cpuIntensityScore),
+                        "Measures how much the app's processing tasks are working the phone's CPU. Higher intensity means more heat and faster battery drain."
+                    ))
+                }
+        ) {
+            LinearProgressIndicator(
+                progress = (stats.cpuIntensityScore / 100f).coerceIn(0f, 1f),
+                modifier = Modifier.fillMaxWidth().height(8.dp),
+                strokeCap = androidx.compose.ui.graphics.StrokeCap.Round
+            )
+            Row(
+                modifier = Modifier.padding(top = 4.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    "CPU utilization estimation (Active sessions)", 
+                    fontSize = 10.sp, 
+                    color = Color.Gray
+                )
+                Spacer(Modifier.width(4.dp))
+                Icon(
+                    imageVector = Icons.Default.Info,
+                    contentDescription = "More info",
+                    modifier = Modifier.size(10.dp),
+                    tint = Color.Gray.copy(alpha = 0.6f)
+                )
+            }
+        }
     }
 }
 
 @Composable
-fun AnomalyWarning() {
+fun AnomalyWarning(message: String) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.9f)),
@@ -210,7 +337,7 @@ fun AnomalyWarning() {
                     fontSize = 14.sp
                 )
                 Text(
-                    "This app is consuming battery significantly above normal thresholds.",
+                    message,
                     color = MaterialTheme.colorScheme.onErrorContainer,
                     fontSize = 12.sp
                 )
@@ -237,7 +364,7 @@ fun NormalStatus() {
             )
             Spacer(modifier = Modifier.width(12.dp))
             Text(
-                "Normal Consumption Status",
+                "Normal consumption",
                 fontWeight = FontWeight.Bold,
                 color = Color(0xFF2E7D32),
                 fontSize = 14.sp
@@ -247,9 +374,32 @@ fun NormalStatus() {
 }
 
 @Composable
-fun TrendContent(stats: com.example.batterymonitor.ui.dashboard.DetailedAppStats) {
+fun TrendContent(
+    stats: com.example.batterymonitor.ui.dashboard.DetailedAppStats,
+    onMetricClick: (MetricInfo) -> Unit
+) {
     Column {
-        Text("Avg. Daily Drain: ${String.format("%.1f%%", stats.sevenDayAverageDrain)}", fontSize = 14.sp, fontWeight = FontWeight.Bold)
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable {
+                    onMetricClick(MetricInfo(
+                        "Avg. Daily Drain",
+                        String.format("%.1f%%", stats.sevenDayAverageDrain),
+                        "Typical battery percentage this app consumes over a 24-hour period, based on the last 7 days of usage."
+                    ))
+                },
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text("Avg. Daily Drain: ${String.format("%.1f%%", stats.sevenDayAverageDrain)}", fontSize = 14.sp, fontWeight = FontWeight.Bold)
+            Icon(
+                imageVector = Icons.Default.Info,
+                contentDescription = "More info",
+                modifier = Modifier.size(14.dp),
+                tint = Color.Gray.copy(alpha = 0.6f)
+            )
+        }
         Spacer(modifier = Modifier.height(16.dp))
         
         if (stats.dailyTrend.isEmpty()) {
@@ -304,10 +454,91 @@ fun TrendChart(trend: List<Pair<String, Float>>) {
     }
 }
 
+data class MetricInfo(
+    val title: String,
+    val currentValue: String,
+    val explanation: String
+)
+
 @Composable
-fun StatItemSmall(label: String, value: String) {
-    Column(modifier = Modifier.padding(vertical = 4.dp)) {
-        Text(label, fontSize = 12.sp, color = Color.Gray)
+fun MetricDetailModal(
+    metric: MetricInfo,
+    onDismiss: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        confirmButton = {},
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Close", color = Color(0xFFFF9F00))
+            }
+        },
+        title = {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = metric.title,
+                    fontWeight = FontWeight.Bold,
+                    color = Color(0xFFFF9F00),
+                    fontSize = 20.sp
+                )
+                IconButton(onClick = onDismiss) {
+                    Icon(
+                        imageVector = Icons.Default.Close,
+                        contentDescription = "Dismiss",
+                        tint = Color.White.copy(alpha = 0.6f)
+                    )
+                }
+            }
+        },
+        text = {
+            Column {
+                Text(
+                    text = "Current Impact: ${metric.currentValue}",
+                    fontWeight = FontWeight.ExtraBold,
+                    color = Color.White,
+                    fontSize = 16.sp,
+                    modifier = Modifier.padding(bottom = 12.dp)
+                )
+                Text(
+                    text = metric.explanation,
+                    color = Color.White.copy(alpha = 0.8f),
+                    fontSize = 14.sp,
+                    lineHeight = 20.sp
+                )
+            }
+        },
+        containerColor = Color(0xFF2C2822),
+        shape = MaterialTheme.shapes.large
+    )
+}
+
+@Composable
+fun StatItemSmall(
+    label: String, 
+    value: String, 
+    onClick: (() -> Unit)? = null
+) {
+    Column(
+        modifier = Modifier
+            .padding(vertical = 4.dp)
+            .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(label, fontSize = 12.sp, color = Color.Gray)
+            if (onClick != null) {
+                Spacer(Modifier.width(4.dp))
+                Icon(
+                    imageVector = Icons.Default.Info,
+                    contentDescription = "More info",
+                    modifier = Modifier.size(12.dp),
+                    tint = Color.Gray.copy(alpha = 0.6f)
+                )
+            }
+        }
         Text(value, fontSize = 16.sp, fontWeight = FontWeight.ExtraBold, color = MaterialTheme.colorScheme.primary)
     }
 }

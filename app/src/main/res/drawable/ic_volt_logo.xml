@@ -1,39 +1,30 @@
 <?xml version="1.0" encoding="utf-8"?>
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:aapt="http://schemas.android.com/apk/res/auto"
     android:width="100dp"
     android:height="100dp"
     android:viewportWidth="100"
     android:viewportHeight="100">
 
-    <!-- Battery Fill Container with Gradient -->
+    <!-- Layer 1: Empty State (White) -->
     <path
-        android:pathData="M74.5,21.4v57.2c0,1.6 -0.6,3.1 -1.7,4.2C71.7,83.9 70.2,84.5 68.6,84.5H31.4c-1.6,0 -3.1,-0.6 -4.2,-1.7c-1.1,-1.1 -1.7,-2.6 -1.7,-4.2V21.4c0,-1.6 0.6,-3.1 1.7,-4.2c1.1,-1.1 2.6,-1.7 4.2,-1.7h37.2c1.6,0 3.1,0.6 4.2,1.7C73.9,18.3 74.5,19.8 74.5,21.4z">
-        <aapt:attr name="android:fillColor">
-            <gradient
-                android:startY="84.5"
-                android:startX="50"
-                android:endY="15.5"
-                android:endX="50"
-                android:type="linear">
-                <item
-                    android:color="#FF9F00"
-                    android:offset="0.0" />
-                <item
-                    android:color="#D24D0A"
-                    android:offset="1.0" />
-            </gradient>
-        </aapt:attr>
-    </path>
+        android:fillColor="#FFFFFF"
+        android:pathData="M74.5,21.4v57.2c0,1.6 -0.6,3.1 -1.7,4.2C71.7,83.9 70.2,84.5 68.6,84.5H31.4c-1.6,0 -3.1,-0.6 -4.2,-1.7c-1.1,-1.1 -1.7,-2.6 -1.7,-4.2V21.4c0,-1.6 0.6,-3.1 1.7,-4.2c1.1,-1.1 2.6,-1.7 4.2,-1.7h37.2c1.6,0 3.1,0.6 4.2,1.7C73.9,18.3 74.5,19.8 74.5,21.4z" />
 
-    <!-- Battery Outline -->
+    <!-- Layer 2: Active Fill (Orange) -->
+    <!-- For dynamic clipping, we would wrap this in a group with clip-path if needed, 
+         but for now we'll maintain it as a static layer for stability. -->
     <path
-        android:fillColor="#333333"
-        android:pathData="M78.8,11.2C76.1,8.5 72.4,7 68.6,7H31.4c-3.8,0 -7.5,1.5 -10.2,4.2C18.5,13.9 17,17.6 17,21.4v57.2c0,3.8 1.5,7.5 4.2,10.2C23.9,91.5 27.6,93 31.4,93h37.2c3.8,0 7.5,-1.5 10.2,-4.2C81.5,86.1 83,82.4 83,78.6V21.4C83,17.6 81.5,13.9 78.8,11.2z M77,78.6c0,2.2 -0.9,4.4 -2.5,6c-1.6,1.6 -3.8,2.5 -6,2.5H31.4c-2.2,0 -4.4,-0.9 -6,-2.5c-1.6,-1.6 -2.5,-3.8 -2.5,-6V21.4c0,-2.2 0.9,-4.4 2.5,-6c1.6,-1.6 3.8,-2.5 6,-2.5h37.2c2.2,0 4.4,0.9 6,2.5c1.6,1.6 2.5,3.8 2.5,6V78.6z" />
+        android:fillColor="#F5A623"
+        android:pathData="M74.5,21.4v57.2c0,1.6 -0.6,3.1 -1.7,4.2C71.7,83.9 70.2,84.5 68.6,84.5H31.4c-1.6,0 -3.1,-0.6 -4.2,-1.7c-1.1,-1.1 -1.7,-2.6 -1.7,-4.2V21.4c0,-1.6 0.6,-3.1 1.7,-4.2c1.1,-1.1 2.6,-1.7 4.2,-1.7h37.2c1.6,0 3.1,0.6 4.2,1.7C73.9,18.3 74.5,19.8 74.5,21.4z" />
 
-    <!-- Bolt Path -->
+    <!-- Layer 3: The Cutout (Lightning Bolt - Card Background Color #2C2822) -->
     <path
-        android:fillColor="#333333"
+        android:fillColor="#2C2822"
         android:pathData="M57.6,33.1H49l11.6,18H52L42.4,72H51l-11.6,-18h8.6l9.6,-18H57.6z" />
+
+    <!-- Layer 4: The Outline (Grey #888888) -->
+    <path
+        android:fillColor="#888888"
+        android:pathData="M78.8,11.2C76.1,8.5 72.4,7 68.6,7H31.4c-3.8,0 -7.5,1.5 -10.2,4.2C18.5,13.9 17,17.6 17,21.4v57.2c0,3.8 1.5,7.5 4.2,10.2C23.9,91.5 27.6,93 31.4,93h37.2c3.8,0 7.5,-1.5 10.2,-4.2C81.5,86.1 83,82.4 83,78.6V21.4C83,17.6 81.5,13.9 78.8,11.2z M77,78.6c0,2.2 -0.9,4.4 -2.5,6c-1.6,1.6 -3.8,2.5 -6,2.5H31.4c-2.2,0 -4.4,-0.9 -6,-2.5c-1.6,-1.6 -2.5,-3.8 -2.5,-6V21.4c0,-2.2 0.9,-4.4 2.5,-6c1.6,-1.6 3.8,-2.5 6,-2.5h37.2c2.2,0 4.4,0.9 6,2.5c1.6,1.6 2.5,3.8 2.5,6V78.6z" />
 
 </vector>
