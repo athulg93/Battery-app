@@ -3,11 +3,11 @@ package com.example.batterymonitor.ui.dashboard
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
+import androidx.compose.runtime.*
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
@@ -31,6 +31,15 @@ fun DashboardScreen(
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val sessions by viewModel.sessions.collectAsState()
+    
+    var currentTipIndex by androidx.compose.runtime.remember { androidx.compose.runtime.mutableIntStateOf(0) }
+
+    androidx.compose.runtime.LaunchedEffect(Unit) {
+        while (true) {
+            kotlinx.coroutines.delay(60000) // 1 minute
+            currentTipIndex = (currentTipIndex + 1) % BatteryTips.list.size
+        }
+    }
 
     Column(
         modifier = Modifier
@@ -38,57 +47,58 @@ fun DashboardScreen(
             .padding(horizontal = 16.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(8.dp))
+        
         // Main Status Card
         Card(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(bottom = 16.dp),
+                .weight(1f, fill = false) 
+                .padding(bottom = 12.dp),
             elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
-            colors = CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.surface
-            )
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
         ) {
-            Row(
-                modifier = Modifier.padding(16.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                // Dynamic Battery Logo with 5% Stepped Clipping
-                DynamicBatteryLogo(
-                    level = uiState.level,
-                    modifier = Modifier.size(80.dp)
-                )
-                
-                Spacer(modifier = Modifier.width(16.dp))
-                
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    modifier = Modifier.weight(1f)
+            Column(modifier = Modifier.padding(16.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.Center
                 ) {
-                    Text(
-                        text = "${uiState.level}%",
-                        fontSize = 72.sp,
-                        fontWeight = FontWeight.ExtraBold,
-                        color = if (uiState.level < 20) Color.Red else MaterialTheme.colorScheme.primary
+                    DynamicBatteryLogo(
+                        level = uiState.level,
+                        modifier = Modifier.size(80.dp)
                     )
-                    Text(
-                        text = if (uiState.isCharging) "Charging" else "Discharging",
-                        fontSize = 18.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = if (uiState.isCharging) Color(0xFF4CAF50) else Color.Gray
-                    )
+                    
+                    Spacer(modifier = Modifier.width(24.dp))
+                    
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(
+                            text = "${uiState.level}%",
+                            fontSize = 64.sp,
+                            fontWeight = FontWeight.ExtraBold,
+                            color = if (uiState.level < 20) Color.Red else MaterialTheme.colorScheme.primary
+                        )
+                        Text(
+                            text = if (uiState.isCharging) "Charging" else "Discharging",
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = if (uiState.isCharging) Color(0xFF4CAF50) else Color.Gray
+                        )
+                    }
                 }
-            }
-            
-            Divider(modifier = Modifier.padding(horizontal = 16.dp), thickness = 0.5.dp, color = Color.LightGray)
-            
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(16.dp),
-                horizontalArrangement = Arrangement.SpaceAround
-            ) {
-                StatItem("Temp", "${uiState.temperature}°C")
-                StatItem("Voltage", String.format(Locale.US, "%.2f V", uiState.voltage))
-                StatItem("Health", "${uiState.healthEstimate.roundToInt()}%")
+                
+                Spacer(modifier = Modifier.height(16.dp))
+                Divider(modifier = Modifier.alpha(0.3f), thickness = 0.5.dp, color = Color.Gray)
+                Spacer(modifier = Modifier.height(16.dp))
+                
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceAround
+                ) {
+                    StatItem("Temp", "${uiState.temperature}°C")
+                    StatItem("Voltage", String.format(Locale.US, "%.2f V", uiState.voltage))
+                    StatItem("Health", "${uiState.healthEstimate.roundToInt()}%")
+                }
             }
         }
 
@@ -96,22 +106,47 @@ fun DashboardScreen(
             text = "Charging Trends",
             style = MaterialTheme.typography.titleMedium,
             fontWeight = FontWeight.Bold,
-            modifier = Modifier.padding(vertical = 12.dp).fillMaxWidth()
+            modifier = Modifier.padding(vertical = 8.dp).fillMaxWidth()
         )
         
-        // New Mixed Chart
-        MixedBatteryChart(sessions)
+        Box(modifier = Modifier.fillMaxWidth().weight(1.5f)) {
+            MixedBatteryChart(sessions)
+        }
         
-        Spacer(modifier = Modifier.weight(1f))
+        Spacer(modifier = Modifier.height(12.dp))
         
-        Text(
-            "Tip: Keep battery between 20-80% for longevity.",
-            style = MaterialTheme.typography.bodySmall,
-            color = Color.Gray,
-            modifier = Modifier.padding(bottom = 16.dp)
-        )
+        // Rotating Battery Advice Card
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(bottom = 16.dp),
+            colors = CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f)
+            ),
+            shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp)
+        ) {
+            Row(
+                modifier = Modifier.padding(16.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(
+                    androidx.compose.material.icons.Icons.Default.Info,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(20.dp)
+                )
+                Spacer(modifier = Modifier.width(12.dp))
+                Text(
+                    text = BatteryTips.list[currentTipIndex],
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    lineHeight = 18.sp
+                )
+            }
+        }
     }
 }
+
 
 @Composable
 fun MixedBatteryChart(sessions: List<ChargeSession>) {

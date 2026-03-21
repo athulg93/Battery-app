@@ -12,12 +12,13 @@ class BatteryMonitorApp : Application() {
     override fun onCreate() {
         super.onCreate()
         scheduleUsageTracking()
+        scheduleBackup()
         UsageStatsWorker.runOnce(this)
+        com.example.batterymonitor.worker.BackupWorker.runOnce(this)
     }
 
     private fun scheduleUsageTracking() {
-        // Run once every 6 hours, but only when device is idle and charging,
-        // so we don't accidentally drain battery by monitoring it!
+        // Run once every 6 hours
         val constraints = Constraints.Builder()
             .setRequiresBatteryNotLow(true)
             .build()
@@ -28,6 +29,24 @@ class BatteryMonitorApp : Application() {
 
         WorkManager.getInstance(this).enqueueUniquePeriodicWork(
             "UsageStatsLogWork",
+            ExistingPeriodicWorkPolicy.KEEP,
+            workRequest
+        )
+    }
+
+    private fun scheduleBackup() {
+        // Run once every 24 hours (once a day)
+        val constraints = Constraints.Builder()
+            .setRequiresBatteryNotLow(true)
+            .setRequiresDeviceIdle(true) // Backup is heavy, do it while idle
+            .build()
+
+        val workRequest = PeriodicWorkRequestBuilder<com.example.batterymonitor.worker.BackupWorker>(24, TimeUnit.HOURS)
+            .setConstraints(constraints)
+            .build()
+
+        WorkManager.getInstance(this).enqueueUniquePeriodicWork(
+            "DataBackupWork",
             ExistingPeriodicWorkPolicy.KEEP,
             workRequest
         )

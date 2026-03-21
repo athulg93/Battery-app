@@ -9,6 +9,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.compose.BackHandler
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -34,8 +35,16 @@ import com.example.batterymonitor.ui.navigation.BatteryNavGraph
 import com.example.batterymonitor.ui.navigation.Screen
 import com.example.batterymonitor.ui.theme.VoltMonitorTheme
 import com.example.batterymonitor.utils.PermissionHelper
+import com.example.batterymonitor.utils.UpdateManager
+import android.content.Context
+import android.widget.Toast
+import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+
+data class UpdateInfo(val version: String, val downloadUrl: String, val body: String)
 
 class MainActivity : ComponentActivity() {
 
@@ -49,6 +58,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         val splashScreen = installSplashScreen()
+        enableEdgeToEdge()
         super.onCreate(savedInstanceState)
         
         checkAndRequestPermissions()
@@ -72,6 +82,59 @@ class MainActivity : ComponentActivity() {
         val currentRoute = navBackStackEntry?.destination?.route
         
         val items = listOf(Screen.Dashboard, Screen.AppUsage, Screen.History)
+
+        var updateInfo by remember { mutableStateOf<UpdateInfo?>(null) }
+        var isCheckingForUpdate by remember { mutableStateOf(false) }
+
+        if (updateInfo != null) {
+            AlertDialog(
+                onDismissRequest = { updateInfo = null },
+                title = { Text("Update Available") },
+                text = { 
+                    Column {
+                        Text("A new version (${updateInfo?.version}) is available. Would you like to download and install it?")
+                        if (updateInfo?.body?.isNotEmpty() == true) {
+                            Spacer(Modifier.height(8.dp))
+                            Text("Whats new:", fontWeight = FontWeight.Bold)
+                            Text(updateInfo!!.body)
+                        }
+                    }
+                },
+                confirmButton = {
+                    TextButton(onClick = {
+                        UpdateManager.downloadAndInstallUpdate(
+                            this@MainActivity,
+                            updateInfo!!.downloadUrl,
+                            "BatteryMonitor_${updateInfo!!.version}.apk"
+                        )
+                        updateInfo = null
+                        Toast.makeText(this@MainActivity, "Download started...", Toast.LENGTH_SHORT).show()
+                    }) {
+                        Text("Download & Install")
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { updateInfo = null }) {
+                        Text("Later")
+                    }
+                }
+            )
+        }
+
+        if (isCheckingForUpdate) {
+            AlertDialog(
+                onDismissRequest = { },
+                confirmButton = { },
+                title = { Text("Checking for Updates") },
+                text = { 
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        CircularProgressIndicator(modifier = Modifier.size(24.dp))
+                        Spacer(Modifier.width(16.dp))
+                        Text("Connecting to GitHub...")
+                    }
+                }
+            )
+        }
         
         // Handle back press to close drawer
         if (drawerState.isOpen) {
@@ -80,11 +143,18 @@ class MainActivity : ComponentActivity() {
             }
         }
 
-        val title = when (currentRoute) {
+        val baseTitle = when (currentRoute) {
             Screen.Dashboard.route -> Screen.Dashboard.title
             Screen.AppUsage.route -> Screen.AppUsage.title
             Screen.History.route -> Screen.History.title
-            else -> "Volt Monitor"
+            else -> ""
+        }
+        val displayTitle = if (currentRoute?.startsWith("app_detail") == true) {
+            "Volt Monitor - App Analysis"
+        } else if (baseTitle.isNotEmpty()) {
+            "Volt Monitor - $baseTitle"
+        } else {
+            "Volt Monitor"
         }
 
         ModalNavigationDrawer(
@@ -123,7 +193,6 @@ class MainActivity : ComponentActivity() {
                                 scope.launch { drawerState.close() }
                                 if (currentRoute != item.route) {
                                     navController.navigate(item.route) {
-                                        // Removed popUpTo(Dashboard) to allow going back to the last screen
                                         launchSingleTop = true
                                         restoreState = true
                                     }
@@ -132,11 +201,27 @@ class MainActivity : ComponentActivity() {
                             modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding)
                         )
                     }
+
+                    NavigationDrawerItem(
+                        label = { Text("Check for Updates") },
+                        selected = false,
+                        onClick = {
+                            scope.launch { 
+                                drawerState.close()
+                                checkForUpdates(
+                                    context = this@MainActivity,
+                                    onShowProgress = { isCheckingForUpdate = it },
+                                    onUpdateFound = { updateInfo = it }
+                                )
+                            }
+                        },
+                        modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding)
+                    )
                     
                     Spacer(modifier = Modifier.weight(1f))
                     
                     Text(
-                        text = "Version 1.0",
+                        text = "Version ${BuildConfig.VERSION_NAME}",
                         modifier = Modifier.padding(16.dp).align(Alignment.CenterHorizontally),
                         style = MaterialTheme.typography.bodySmall,
                         color = Color.Gray
@@ -146,10 +231,11 @@ class MainActivity : ComponentActivity() {
             }
         ) {
             Scaffold(
+                modifier = Modifier.fillMaxSize(),
                 topBar = {
                     val isAppDetail = currentRoute?.startsWith("app_detail") == true
                     TopAppBar(
-                        title = { Text(if (isAppDetail) "App Analysis" else title, fontWeight = FontWeight.Bold) },
+                        title = { Text(displayTitle, fontWeight = FontWeight.Bold) },
                         navigationIcon = {
                             if (isAppDetail) {
                                 IconButton(onClick = { navController.popBackStack() }) {
@@ -161,13 +247,15 @@ class MainActivity : ComponentActivity() {
                                 }
                             }
                         },
+                        windowInsets = WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal + WindowInsetsSides.Top),
                         colors = TopAppBarDefaults.topAppBarColors(
                             containerColor = MaterialTheme.colorScheme.primary,
                             titleContentColor = MaterialTheme.colorScheme.onPrimary,
                             navigationIconContentColor = MaterialTheme.colorScheme.onPrimary
                         )
                     )
-                }
+                },
+                contentWindowInsets = WindowInsets.safeDrawing
             ) { padding ->
                 Surface(
                     modifier = Modifier.fillMaxSize().padding(padding),
@@ -205,5 +293,37 @@ class MainActivity : ComponentActivity() {
     private fun startBatteryService() {
         val serviceIntent = Intent(this, BatteryMonitorService::class.java)
         ContextCompat.startForegroundService(this, serviceIntent)
+    }
+
+    private fun checkForUpdates(
+        context: Context,
+        onShowProgress: (Boolean) -> Unit,
+        onUpdateFound: (UpdateInfo) -> Unit
+    ) {
+        val scope = (context as MainActivity).lifecycleScope
+        onShowProgress(true)
+        
+        UpdateManager.checkForUpdates(context, object : UpdateManager.UpdateCallback {
+            override fun onUpdateAvailable(newVersion: String, downloadUrl: String, body: String) {
+                scope.launch {
+                    onShowProgress(false)
+                    onUpdateFound(UpdateInfo(newVersion, downloadUrl, body))
+                }
+            }
+
+            override fun onNoUpdate() {
+                 scope.launch {
+                    onShowProgress(false)
+                    Toast.makeText(context, "You are on the latest version", Toast.LENGTH_SHORT).show()
+                 }
+            }
+
+            override fun onError(message: String) {
+                scope.launch {
+                    onShowProgress(false)
+                    Toast.makeText(context, "Update check failed: $message", Toast.LENGTH_SHORT).show()
+                }
+            }
+        })
     }
 }
