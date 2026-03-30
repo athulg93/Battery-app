@@ -247,51 +247,71 @@ fun V2TrendChart(trend: List<Pair<String, Float>>, modifier: Modifier = Modifier
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .height(180.dp)
+            .height(220.dp)
             .clip(RoundedCornerShape(16.dp))
             .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.2f))
             .padding(16.dp)
     ) {
-        val primaryColor = MaterialTheme.colorScheme.primary
-        val primaryVariant = MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)
-
-        // Simplified V2 Chart (Sparkline backdrop)
-        Canvas(modifier = Modifier.fillMaxSize()) {
-            val path = androidx.compose.ui.graphics.Path()
-            val stepX = size.width / (trend.size - 1).coerceAtLeast(1)
-            
-            trend.forEachIndexed { index, pair ->
-                val x = index * stepX
-                val y = size.height - (pair.second / maxVal) * size.height
-                if (index == 0) path.moveTo(x, y) else path.lineTo(x, y)
-            }
-            
-            drawPath(
-                path = path,
-                brush = Brush.verticalGradient(
-                    listOf(primaryVariant, Color.Transparent)
-                )
-            )
-            drawPath(
-                path = path,
-                color = primaryColor,
-                style = Stroke(width = 3.dp.toPx(), cap = StrokeCap.Round)
-            )
-        }
-        
-        // Indicator
-        Box(
-            modifier = Modifier
-                .padding(8.dp)
-                .background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(8.dp))
-                .padding(horizontal = 8.dp, vertical = 4.dp)
-        ) {
+        Column(modifier = Modifier.fillMaxSize()) {
             Text(
                 text = "Live Trend",
                 fontSize = 10.sp,
                 fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(bottom = 8.dp)
             )
+
+            Row(
+                modifier = Modifier.weight(1f).fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceEvenly,
+                verticalAlignment = Alignment.Bottom
+            ) {
+                trend.forEach { pair ->
+                    val heightRatio = (pair.second / maxVal).coerceIn(0.02f, 1f)
+                    
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.Bottom,
+                        modifier = Modifier.weight(1f).fillMaxHeight()
+                    ) {
+                        Text(
+                            text = if (pair.second > 0) "${pair.second.toInt()}%" else "",
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.padding(bottom = 4.dp)
+                        )
+                        
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth(0.5f)
+                                .fillMaxHeight(heightRatio)
+                                .background(
+                                    MaterialTheme.colorScheme.primary.copy(alpha = if (pair.second > 0) 1f else 0.1f),
+                                    RoundedCornerShape(topStart = 6.dp, topEnd = 6.dp)
+                                )
+                        )
+                    }
+                }
+            }
+            
+            // Day Labels Row
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+                horizontalArrangement = Arrangement.SpaceEvenly
+            ) {
+                trend.forEach { pair ->
+                    Text(
+                        text = pair.first,
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.weight(1f),
+                        textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                    )
+                }
+            }
         }
     }
 }
+
