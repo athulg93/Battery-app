@@ -4,6 +4,7 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -18,6 +19,13 @@ import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.batterymonitor.ui.components.V2BentoCard
+import com.example.batterymonitor.ui.components.V2CircularBatteryIndicator
+import com.example.batterymonitor.ui.components.V2GlassCard
+import com.example.batterymonitor.ui.components.V2TrendChart
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.batterymonitor.data.local.ChargeSession
 import com.example.batterymonitor.ui.components.DynamicBatteryLogo
@@ -32,11 +40,11 @@ fun DashboardScreen(
     val uiState by viewModel.uiState.collectAsState()
     val sessions by viewModel.sessions.collectAsState()
     
-    var currentTipIndex by androidx.compose.runtime.remember { androidx.compose.runtime.mutableIntStateOf(0) }
+    var currentTipIndex by remember { mutableIntStateOf(0) }
 
-    androidx.compose.runtime.LaunchedEffect(Unit) {
+    LaunchedEffect(Unit) {
         while (true) {
-            kotlinx.coroutines.delay(60000) // 1 minute
+            kotlinx.coroutines.delay(60000)
             currentTipIndex = (currentTipIndex + 1) % BatteryTips.list.size
         }
     }
@@ -44,237 +52,131 @@ fun DashboardScreen(
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .padding(horizontal = 16.dp),
+            .padding(horizontal = 20.dp)
+            .verticalScroll(rememberScrollState()),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Spacer(modifier = Modifier.height(8.dp))
+        Spacer(modifier = Modifier.height(24.dp))
         
-        // Main Status Card
-        Card(
-            modifier = Modifier
-                .fillMaxWidth()
-                .weight(1f, fill = false) 
-                .padding(bottom = 12.dp),
-            elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+        // Hero Section: Circular Indicator
+        Box(
+            modifier = Modifier.fillMaxWidth().height(260.dp),
+            contentAlignment = Alignment.Center
         ) {
-            Column(modifier = Modifier.padding(16.dp)) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.Center
+            com.example.batterymonitor.ui.components.V2CircularBatteryIndicator(
+                level = uiState.level,
+                temperature = uiState.temperature,
+                isHealthy = uiState.healthEstimate > 80f,
+                modifier = Modifier.size(240.dp)
+            )
+        }
+        
+        Spacer(modifier = Modifier.height(32.dp))
+        
+        // Bento Grid: Metrics
+        Text(
+            text = "SYSTEM VITALITY",
+            fontSize = 10.sp,
+            fontWeight = FontWeight.Black,
+            letterSpacing = 2.sp,
+            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+            modifier = Modifier.align(Alignment.Start).padding(bottom = 12.dp)
+        )
+        
+        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                com.example.batterymonitor.ui.components.V2BentoCard(
+                    label = "Thermal",
+                    value = "${uiState.temperature}°C",
+                    modifier = Modifier.weight(1f),
+                    color = if (uiState.temperature > 40) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary
+                )
+                com.example.batterymonitor.ui.components.V2BentoCard(
+                    label = "Health",
+                    value = "${uiState.healthEstimate.roundToInt()}%",
+                    modifier = Modifier.weight(1f)
+                )
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                com.example.batterymonitor.ui.components.V2BentoCard(
+                    label = "Voltage",
+                    value = String.format(Locale.US, "%.2fV", uiState.voltage),
+                    modifier = Modifier.weight(1f),
+                    color = MaterialTheme.colorScheme.secondary
+                )
+                com.example.batterymonitor.ui.components.V2BentoCard(
+                    label = "Power",
+                    value = if (uiState.isCharging && uiState.chargingWattage > 0) 
+                        String.format(Locale.US, "%.1fW", uiState.chargingWattage) 
+                    else if (uiState.isCharging) "Charging" else "Standby",
+                    modifier = Modifier.weight(1f),
+                    color = if (uiState.isCharging) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+        
+        Spacer(modifier = Modifier.height(32.dp))
+        
+        // Consumption Trends
+        Text(
+            text = "POWER DYNAMICS",
+            fontSize = 10.sp,
+            fontWeight = FontWeight.Black,
+            letterSpacing = 2.sp,
+            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+            modifier = Modifier.align(Alignment.Start).padding(bottom = 12.dp)
+        )
+        
+        // Map sessions to trend pairs
+        val trendData = sessions.takeLast(7).map { 
+            val time = SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date(it.startTime))
+            time to (it.endLevel - it.startLevel).toFloat().coerceAtLeast(0f)
+        }
+        
+        com.example.batterymonitor.ui.components.V2TrendChart(
+            trend = trendData.ifEmpty { listOf("Now" to 0f) }
+        )
+        
+        Spacer(modifier = Modifier.height(24.dp))
+        
+        // Live Intelligence Card
+        com.example.batterymonitor.ui.components.V2GlassCard {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Surface(
+                    color = MaterialTheme.colorScheme.primary.copy(alpha = 0.1f),
+                    shape = RoundedCornerShape(12.dp),
+                    modifier = Modifier.size(40.dp)
                 ) {
-                    DynamicBatteryLogo(
-                        level = uiState.level,
-                        modifier = Modifier.size(80.dp)
-                    )
-                    
-                    Spacer(modifier = Modifier.width(24.dp))
-                    
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text(
-                            text = "${uiState.level}%",
-                            fontSize = 64.sp,
-                            fontWeight = FontWeight.ExtraBold,
-                            color = if (uiState.level < 20) Color.Red else MaterialTheme.colorScheme.primary
-                        )
-                        Text(
-                            text = if (uiState.isCharging) "Charging" else "Discharging",
-                            fontSize = 16.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = if (uiState.isCharging) Color(0xFF4CAF50) else Color.Gray
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(
+                            imageVector = Icons.Default.Info,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(20.dp)
                         )
                     }
                 }
-                
-                Spacer(modifier = Modifier.height(16.dp))
-                Divider(modifier = Modifier.alpha(0.3f), thickness = 0.5.dp, color = Color.Gray)
-                Spacer(modifier = Modifier.height(16.dp))
-                
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceAround
-                ) {
-                    StatItem("Temp", "${uiState.temperature}°C")
-                    StatItem("Voltage", String.format(Locale.US, "%.2f V", uiState.voltage))
-                    StatItem("Health", "${uiState.healthEstimate.roundToInt()}%")
+                Spacer(Modifier.width(16.dp))
+                Column {
+                    Text(
+                        text = "VITALITY INSIGHT",
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Black,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                    Text(
+                        text = BatteryTips.list[currentTipIndex],
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(top = 2.dp)
+                    )
                 }
             }
         }
-
-        Text(
-            text = "Charging Trends",
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.Bold,
-            modifier = Modifier.padding(vertical = 8.dp).fillMaxWidth()
-        )
         
-        Box(modifier = Modifier.fillMaxWidth().weight(1.5f)) {
-            MixedBatteryChart(sessions)
-        }
-        
-        Spacer(modifier = Modifier.height(12.dp))
-        
-        // Rotating Battery Advice Card
-        Card(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(bottom = 16.dp),
-            colors = CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f)
-            ),
-            shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp)
-        ) {
-            Row(
-                modifier = Modifier.padding(16.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Icon(
-                    androidx.compose.material.icons.Icons.Default.Info,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.size(20.dp)
-                )
-                Spacer(modifier = Modifier.width(12.dp))
-                Text(
-                    text = BatteryTips.list[currentTipIndex],
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    lineHeight = 18.sp
-                )
-            }
-        }
+        Spacer(modifier = Modifier.height(32.dp))
     }
 }
 
 
-@Composable
-fun MixedBatteryChart(sessions: List<ChargeSession>) {
-    val displaySessions = sessions.filter { it.isComplete && it.endLevel != -1 }.take(7).reversed()
-    if (displaySessions.isEmpty()) {
-        Box(modifier = Modifier.fillMaxWidth().height(220.dp), contentAlignment = Alignment.Center) {
-            Text("No comparative data available yet.", color = Color.Gray)
-        }
-        return
-    }
 
-    val primaryColor = MaterialTheme.colorScheme.primary
-    val secondaryColor = MaterialTheme.colorScheme.secondary
-    val labelColor = MaterialTheme.colorScheme.onSurface.toArgb()
-
-    Canvas(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(220.dp)
-            .padding(top = 24.dp, bottom = 12.dp, start = 40.dp, end = 16.dp)
-    ) {
-        val width = size.width
-        val height = size.height
-        val spacing = width / (displaySessions.size.coerceAtLeast(1))
-        
-        // Draw Y-axis labels and grid
-        val levels = listOf(0, 50, 100)
-        levels.forEach { level ->
-            val y = height - (level / 100f * height)
-            drawLine(
-                color = Color.LightGray.copy(alpha = 0.3f),
-                start = Offset(0f, y),
-                end = Offset(width, y),
-                strokeWidth = 1.dp.toPx()
-            )
-            drawContext.canvas.nativeCanvas.drawText(
-                "$level%",
-                -35.dp.toPx(),
-                y + 5.dp.toPx(),
-                android.graphics.Paint().apply {
-                    color = labelColor
-                    textSize = 10.sp.toPx()
-                    alpha = 150
-                }
-            )
-        }
-
-        displaySessions.forEachIndexed { index, session ->
-            val x = index * spacing + (spacing / 2)
-            val yStart = height - (session.startLevel / 100f * height)
-            val yEnd = height - (session.endLevel / 100f * height)
-
-            // Draw Bar (Gain)
-            if (session.endLevel > session.startLevel) {
-                drawRect(
-                    color = primaryColor.copy(alpha = 0.15f),
-                    topLeft = Offset(x - 10.dp.toPx(), yEnd),
-                    size = Size(20.dp.toPx(), (yStart - yEnd).coerceAtLeast(1f))
-                )
-            }
-
-            // Draw Line for the session
-            drawLine(
-                color = primaryColor,
-                start = Offset(x, yStart),
-                end = Offset(x, yEnd),
-                strokeWidth = 3.dp.toPx()
-            )
-            
-            // Dots at start and end
-            drawCircle(color = secondaryColor, radius = 4.dp.toPx(), center = Offset(x, yStart))
-            drawCircle(color = primaryColor, radius = 4.dp.toPx(), center = Offset(x, yEnd))
-            
-            // Labels
-            drawContext.canvas.nativeCanvas.drawText(
-                "${session.startLevel}%",
-                x - 12.dp.toPx(),
-                yStart + 15.dp.toPx(),
-                android.graphics.Paint().apply {
-                    color = labelColor
-                    textSize = 8.sp.toPx()
-                }
-            )
-            drawContext.canvas.nativeCanvas.drawText(
-                "${session.endLevel}%",
-                x - 12.dp.toPx(),
-                yEnd - 10.dp.toPx(),
-                android.graphics.Paint().apply {
-                    color = labelColor
-                    textSize = 9.sp.toPx()
-                    isFakeBoldText = true
-                }
-            )
-
-            // Connection Logic: Link end of this session to start of next session (Discharge)
-            if (index < displaySessions.size - 1) {
-                val nextSession = displaySessions[index + 1]
-                val nextX = (index + 1) * spacing + (spacing / 2)
-                val nextYStart = height - (nextSession.startLevel / 100f * height)
-                
-                drawLine(
-                    color = Color.Gray.copy(alpha = 0.3f),
-                    start = Offset(x, yEnd),
-                    end = Offset(nextX, nextYStart),
-                    strokeWidth = 1.dp.toPx(),
-                    pathEffect = PathEffect.dashPathEffect(floatArrayOf(12f, 12f), 0f)
-                )
-            }
-
-            // Draw X-axis Time Label
-            val timeStr = SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date(session.startTime))
-            drawContext.canvas.nativeCanvas.drawText(
-                timeStr,
-                x - 15.dp.toPx(),
-                height + 15.dp.toPx(),
-                android.graphics.Paint().apply {
-                    color = labelColor
-                    textSize = 8.sp.toPx()
-                }
-            )
-        }
-    }
-}
-
-@Composable
-fun StatItem(label: String, value: String) {
-    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        Text(text = label, color = Color.Gray, fontSize = 14.sp)
-        Text(text = value, fontWeight = FontWeight.Bold, fontSize = 18.sp, color = MaterialTheme.colorScheme.onSurface)
-    }
-}

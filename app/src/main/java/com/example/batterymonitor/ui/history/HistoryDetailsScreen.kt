@@ -7,6 +7,8 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -14,33 +16,106 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.runtime.rememberCoroutineScope
 import com.example.batterymonitor.data.local.ChargeSession
-import com.example.batterymonitor.ui.dashboard.DashboardViewModel
+import kotlinx.coroutines.launch
+import com.example.batterymonitor.ui.history.HistoryViewModel
 import java.text.SimpleDateFormat
 import java.util.*
 
+import com.example.batterymonitor.ui.components.V2GlassCard
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.filled.ArrowForward
+
 @Composable
 fun HistoryDetailsScreen(
-    viewModel: DashboardViewModel = viewModel()
+    viewModel: HistoryViewModel = viewModel()
 ) {
     val sessions by viewModel.sessions.collectAsState()
+    val restoreStatus by viewModel.restoreStatus.collectAsState()
+    val snackbarHostState = remember { SnackbarHostState() }
+    val scope = rememberCoroutineScope()
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(horizontal = 16.dp)
-    ) {
-        if (sessions.isEmpty()) {
-            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                Text("No charging history found.", color = Color.Gray)
+    val launcher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        uri?.let { viewModel.restoreHistory(it) }
+    }
+
+    LaunchedEffect(restoreStatus) {
+        when (val status = restoreStatus) {
+            is RestoreStatus.Success -> {
+                snackbarHostState.showSnackbar("History successfully synchronized")
+                viewModel.resetRestoreStatus()
             }
-        } else {
-            LazyColumn(
-                modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(top = 8.dp, bottom = 16.dp)
+            is RestoreStatus.Error -> {
+                snackbarHostState.showSnackbar("Synchronization failed: ${status.message}")
+                viewModel.resetRestoreStatus()
+            }
+            else -> {}
+        }
+    }
+
+    Scaffold(
+        snackbarHost = { SnackbarHost(snackbarHostState) },
+        containerColor = Color.Transparent
+    ) { padding ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding)
+                .padding(horizontal = 20.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(vertical = 16.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                items(sessions) { session ->
-                    HistoryItem(session)
+                Text(
+                    text = "SYNCHRONIZED CYCLES",
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.Black,
+                    letterSpacing = 2.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                )
+
+                if (restoreStatus is RestoreStatus.Loading) {
+                    CircularProgressIndicator(modifier = Modifier.size(24.dp))
+                } else {
+                    TextButton(
+                        onClick = { launcher.launch(arrayOf("application/json", "*/*")) },
+                        colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.primary)
+                    ) {
+                        Text("RESTORE BACKUP", fontSize = 10.sp, fontWeight = FontWeight.Black)
+                    }
+                }
+            }
+
+            if (sessions.isEmpty()) {
+                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(
+                            "No historical logs synchronized",
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+                        )
+                        Spacer(Modifier.height(16.dp))
+                        Button(
+                            onClick = { launcher.launch(arrayOf("application/json", "*/*")) },
+                            shape = RoundedCornerShape(12.dp)
+                        ) {
+                            Text("Import Previous History")
+                        }
+                    }
+                }
+            } else {
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize(),
+                    verticalArrangement = Arrangement.spacedBy(16.dp),
+                    contentPadding = PaddingValues(bottom = 32.dp)
+                ) {
+                    items(sessions) { session ->
+                        V2HistoryItem(session)
+                    }
                 }
             }
         }
@@ -48,73 +123,104 @@ fun HistoryDetailsScreen(
 }
 
 @Composable
-fun HistoryItem(session: ChargeSession) {
-    val format = SimpleDateFormat("MMM dd, yyyy • HH:mm", Locale.getDefault())
+fun V2HistoryItem(session: ChargeSession) {
+    val format = SimpleDateFormat("MMM dd • HH:mm", Locale.getDefault())
     val dateStr = format.format(Date(session.startTime))
     
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 6.dp),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surface
-        )
-    ) {
-        Column(modifier = Modifier.padding(16.dp)) {
+    V2GlassCard {
+        Column {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(text = dateStr, fontWeight = FontWeight.SemiBold, fontSize = 14.sp, color = Color.Gray)
+                Column {
+                    Text(
+                        text = dateStr.uppercase(),
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Black,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                    )
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        text = if (session.isComplete && session.endLevel != -1) 
+                            "System Calibrated" else "Incomplete Cycle",
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                }
                 
                 Surface(
-                    shape = MaterialTheme.shapes.small,
+                    shape = RoundedCornerShape(8.dp),
                     color = when {
-                        session.isComplete && session.endLevel != -1 -> Color(0xFF4CAF50).copy(alpha = 0.1f)
-                        !session.isComplete -> MaterialTheme.colorScheme.primary.copy(alpha = 0.1f)
-                        else -> Color.Gray.copy(alpha = 0.1f)
+                        session.isComplete && session.endLevel != -1 -> MaterialTheme.colorScheme.primary.copy(alpha = 0.1f)
+                        !session.isComplete -> MaterialTheme.colorScheme.secondary.copy(alpha = 0.1f)
+                        else -> MaterialTheme.colorScheme.error.copy(alpha = 0.1f)
                     }
                 ) {
                     Text(
                         text = when {
-                            session.isComplete && session.endLevel != -1 -> "Complete"
-                            !session.isComplete -> "In Progress"
-                            else -> "Interrupted"
+                            session.isComplete && session.endLevel != -1 -> "SYNCED"
+                            !session.isComplete -> "ACTIVE"
+                            else -> "FAILED"
                         },
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Black,
+                        letterSpacing = 1.sp,
                         color = when {
-                            session.isComplete && session.endLevel != -1 -> Color(0xFF4CAF50)
-                            !session.isComplete -> MaterialTheme.colorScheme.primary
-                            else -> Color.Gray
+                            session.isComplete && session.endLevel != -1 -> MaterialTheme.colorScheme.primary
+                            !session.isComplete -> MaterialTheme.colorScheme.secondary
+                            else -> MaterialTheme.colorScheme.error
                         }
                     )
                 }
             }
             
-            Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(20.dp))
             
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.Bottom
             ) {
-                Column {
-                    Text("Level Change", fontSize = 12.sp, color = Color.Gray)
+                Row(verticalAlignment = Alignment.Bottom) {
                     Text(
-                        "${session.startLevel}% → ${if (session.isComplete && session.endLevel != -1) "${session.endLevel}%" else "..."}",
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 18.sp
+                        text = "${session.startLevel}%",
+                        fontSize = 28.sp,
+                        fontWeight = FontWeight.Black,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
+                    )
+                    Icon(
+                        imageVector = androidx.compose.material.icons.Icons.Default.ArrowForward,
+                        contentDescription = null,
+                        modifier = Modifier.padding(start = 8.dp, end = 8.dp, bottom = 8.dp).size(16.dp),
+                        tint = MaterialTheme.colorScheme.primary
+                    )
+                    Text(
+                        text = if (session.isComplete && session.endLevel != -1) "${session.endLevel}%" else "...",
+                        fontSize = 32.sp,
+                        fontWeight = FontWeight.Black,
+                        color = MaterialTheme.colorScheme.primary
                     )
                 }
                 
                 if (session.isComplete && session.endLevel != -1) {
                     val gain = session.endLevel - session.startLevel
                     Column(horizontalAlignment = Alignment.End) {
-                        Text("Gain", fontSize = 12.sp, color = Color.Gray)
-                        Text("+$gain%", fontWeight = FontWeight.Bold, fontSize = 18.sp, color = Color(0xFF4CAF50))
+                        Text(
+                            text = "+$gain%",
+                            fontWeight = FontWeight.Black,
+                            fontSize = 20.sp,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                        Text(
+                            text = "GAIN",
+                            fontSize = 8.sp,
+                            fontWeight = FontWeight.Black,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
+                        )
                     }
                 }
             }
@@ -122,13 +228,17 @@ fun HistoryItem(session: ChargeSession) {
             if (session.endTime > 0) {
                 val durationMs = session.endTime - session.startTime
                 val minutes = durationMs / (1000 * 60)
+                Spacer(modifier = Modifier.height(16.dp))
+                Divider(color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.05f))
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(
-                    "Duration: ${minutes}m",
-                    fontSize = 12.sp,
-                    color = Color.Gray
+                    text = "Operational duration: ${minutes}m",
+                    fontSize = 10.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
                 )
             }
         }
     }
 }
+
+

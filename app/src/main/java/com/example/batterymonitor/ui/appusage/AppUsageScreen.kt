@@ -20,68 +20,139 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.example.batterymonitor.ui.dashboard.AppUsageSummary
-import com.example.batterymonitor.ui.dashboard.DashboardViewModel
+import com.example.batterymonitor.data.repository.AppUsageSummary
 import kotlinx.coroutines.delay
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import androidx.compose.ui.res.painterResource
+import com.example.batterymonitor.ui.appusage.AppUsageViewModel
+import java.util.Locale
+import kotlin.math.roundToInt
+
+import com.example.batterymonitor.ui.components.V2GlassCard
+import com.example.batterymonitor.ui.components.V2AppDrainItem
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 
 @Composable
 fun AppUsageScreen(
     onAppClick: (String) -> Unit,
-    viewModel: DashboardViewModel = viewModel()
+    viewModel: AppUsageViewModel = viewModel()
 ) {
     val appUsage by viewModel.appUsage.collectAsState()
+    val isLoading by viewModel.isLoading.collectAsState()
+    val sortOrder by viewModel.sortOrder.collectAsState()
     val context = LocalContext.current
 
-    LaunchedEffect(Unit) {
-        while (true) {
-            com.example.batterymonitor.worker.UsageStatsWorker.runOnce(context)
-            delay(30000)
-        }
-    }
+    val totalConsumptionMah = appUsage.sumOf { it.estimatedDrainMah.toDouble() }.toFloat()
 
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .padding(horizontal = 16.dp)
+            .padding(horizontal = 20.dp)
     ) {
-        if (appUsage.isEmpty()) {
+        if (isLoading) {
+            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
+            }
+        } else if (appUsage.isEmpty()) {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text("No usage data available.", color = Color.Gray)
-                    Spacer(modifier = Modifier.height(16.dp))
-                    Button(onClick = { 
-                        com.example.batterymonitor.utils.PermissionHelper.requestUsageStatsPermission(context)
-                    }) {
-                        Text("Grant Usage Stats Permission")
+                    Text("Vitality data pending calibration", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Spacer(modifier = Modifier.height(24.dp))
+                    Button(
+                        onClick = { com.example.batterymonitor.utils.PermissionHelper.requestUsageStatsPermission(context) },
+                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
+                    ) {
+                        Text("Initialize Analysis Engine", fontWeight = FontWeight.Bold)
                     }
                 }
             }
         } else {
-            Text(
-                text = "Estimated Battery Impact",
-                style = MaterialTheme.typography.bodyMedium,
-                color = Color.Gray,
-                modifier = Modifier.padding(vertical = 12.dp)
-            )
+            Spacer(modifier = Modifier.height(16.dp))
+            
+            // Hero: Total Consumption
+            V2GlassCard {
+                Column {
+                    Text(
+                        text = "TOTAL CONSUMPTION",
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Black,
+                        letterSpacing = 2.sp,
+                        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.6f)
+                    )
+                    Spacer(Modifier.height(4.dp))
+                    Row(verticalAlignment = Alignment.Bottom) {
+                        Text(
+                            text = String.format(Locale.US, "%,.0f", totalConsumptionMah),
+                            fontSize = 48.sp,
+                            fontWeight = FontWeight.Black,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                        Text(
+                            text = "mAh",
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                            modifier = Modifier.padding(bottom = 10.dp, start = 8.dp)
+                        )
+                    }
+                    Text(
+                        text = "Analysis since last full charge cycle",
+                        fontSize = 11.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                        modifier = Modifier.padding(top = 8.dp)
+                    )
+                }
+            }
+            
+            Spacer(modifier = Modifier.height(32.dp))
+            
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "IMPACT BREAKDOWN",
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.Black,
+                    letterSpacing = 2.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                )
+                
+                // Sorting Chiplist
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    SortChip("Drain", sortOrder == AppSortOrder.DRAIN) { viewModel.setSortOrder(AppSortOrder.DRAIN) }
+                    SortChip("Time", sortOrder == AppSortOrder.TIME) { viewModel.setSortOrder(AppSortOrder.TIME) }
+                    SortChip("Name", sortOrder == AppSortOrder.NAME) { viewModel.setSortOrder(AppSortOrder.NAME) }
+                }
+            }
+            
+            Spacer(modifier = Modifier.height(16.dp))
             
             LazyColumn(
                 modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(bottom = 24.dp)
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+                contentPadding = PaddingValues(bottom = 32.dp)
             ) {
                 items(
                     items = appUsage,
                     key = { it.packageName }
                 ) { usage ->
-                    AppUsageCard(
-                        name = usage.label,
-                        packageName = usage.packageName,
-                        drainPct = usage.estimatedDrainPct
-                    ) {
-                        onAppClick(usage.packageName)
-                    }
+                    val timeMinutes = usage.foregroundTimeMs / (1000 * 60)
+                    val timeText = if (timeMinutes > 60) "${timeMinutes / 60}h ${timeMinutes % 60}m active" else "${timeMinutes}m active"
+                    
+                    V2AppDrainItem(
+                        label = usage.label,
+                        percentage = usage.estimatedDrainPct.roundToInt(),
+                        time = timeText,
+                        drainMah = usage.estimatedDrainMah,
+                        icon = {
+                            AppIconImage(packageName = usage.packageName)
+                        },
+                        modifier = Modifier.clickable { onAppClick(usage.packageName) }
+                    )
                 }
             }
         }
@@ -89,85 +160,42 @@ fun AppUsageScreen(
 }
 
 @Composable
-fun AppUsageCard(
-    name: String,
-    packageName: String,
-    drainPct: Float,
-    onClick: () -> Unit
-) {
-    val context = LocalContext.current
-    
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 8.dp)
-            .clickable { onClick() },
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surface
-        )
+fun SortChip(label: String, selected: Boolean, onClick: () -> Unit) {
+    Surface(
+        modifier = Modifier.clickable { onClick() },
+        color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant,
+        shape = RoundedCornerShape(12.dp)
     ) {
-        Row(
-            modifier = Modifier
-                .padding(16.dp)
-                .fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            var appIcon by remember { mutableStateOf<android.graphics.drawable.Drawable?>(null) }
-            
-            LaunchedEffect(packageName) {
-                try {
-                    val info = context.packageManager.getApplicationInfo(packageName, 0)
-                    appIcon = context.packageManager.getApplicationIcon(info)
-                } catch (e: Exception) {
-                    // Fallback to placeholder already set in error/fallback
-                }
-            }
-
-            // Asynchronous Icon Loading with Coil
-            AsyncImage(
-                model = ImageRequest.Builder(context)
-                    .data(appIcon ?: com.example.batterymonitor.R.drawable.ic_battery_placeholder)
-                    .crossfade(true)
-                    .build(),
-                contentDescription = null,
-                modifier = Modifier.size(48.dp),
-                error = painterResource(id = com.example.batterymonitor.R.drawable.ic_battery_placeholder),
-                fallback = painterResource(id = com.example.batterymonitor.R.drawable.ic_battery_placeholder)
-            )
-            
-            Spacer(modifier = Modifier.width(16.dp))
-            
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = name,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 18.sp,
-                    color = MaterialTheme.colorScheme.onSurface
-                )
-                Text(
-                    text = packageName,
-                    fontSize = 12.sp,
-                    color = Color.Gray
-                )
-                Spacer(modifier = Modifier.height(12.dp))
-                LinearProgressIndicator(
-                    progress = drainPct / 100f,
-                    modifier = Modifier.fillMaxWidth().height(6.dp),
-                    color = if (drainPct > 40f) Color.Red else MaterialTheme.colorScheme.primary,
-                    strokeCap = androidx.compose.ui.graphics.StrokeCap.Round,
-                    trackColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.1f)
-                )
-            }
-            
-            Spacer(modifier = Modifier.width(16.dp))
-            
-            Text(
-                text = String.format("%.1f%%", drainPct),
-                fontWeight = FontWeight.ExtraBold,
-                fontSize = 16.sp,
-                color = if (drainPct > 40f) Color.Red else MaterialTheme.colorScheme.onSurface
-            )
-        }
+        Text(
+            text = label,
+            fontSize = 10.sp,
+            fontWeight = FontWeight.Bold,
+            color = if (selected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+        )
     }
+}
+
+@Composable
+fun AppIconImage(packageName: String) {
+    val context = LocalContext.current
+    var appIcon by remember { mutableStateOf<android.graphics.drawable.Drawable?>(null) }
+    
+    LaunchedEffect(packageName) {
+        try {
+            val info = context.packageManager.getApplicationInfo(packageName, 0)
+            appIcon = context.packageManager.getApplicationIcon(info)
+        } catch (e: Exception) {}
+    }
+
+    AsyncImage(
+        model = ImageRequest.Builder(context)
+            .data(appIcon ?: com.example.batterymonitor.R.drawable.ic_battery_placeholder)
+            .crossfade(true)
+            .build(),
+        contentDescription = null,
+        modifier = Modifier.size(32.dp),
+        error = painterResource(id = com.example.batterymonitor.R.drawable.ic_battery_placeholder),
+        fallback = painterResource(id = com.example.batterymonitor.R.drawable.ic_battery_placeholder)
+    )
 }

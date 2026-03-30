@@ -13,6 +13,8 @@ import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
 import java.io.OutputStreamWriter
+import java.io.InputStreamReader
+import java.io.BufferedReader
 
 object BackupUtils {
 
@@ -102,6 +104,65 @@ object BackupUtils {
         } catch (e: Exception) {
             Log.e(TAG, "Error saving backup legacy", e)
             false
+        }
+    }
+
+    fun readBackupFromUri(context: Context, uri: Uri): String? {
+        return try {
+            context.contentResolver.openInputStream(uri)?.use { inputStream ->
+                BufferedReader(InputStreamReader(inputStream)).use { reader ->
+                    reader.readText()
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error reading backup from URI", e)
+            null
+        }
+    }
+
+    fun parseBackupJson(json: String): Pair<List<ChargeSession>, List<AppUsageLog>>? {
+        return try {
+            val root = JSONObject(json)
+            val sessionsList = mutableListOf<ChargeSession>()
+            val logsList = mutableListOf<AppUsageLog>()
+
+            val sessionsArray = root.optJSONArray("sessions")
+            if (sessionsArray != null) {
+                for (i in 0 until sessionsArray.length()) {
+                    val obj = sessionsArray.getJSONObject(i)
+                    sessionsList.add(
+                        ChargeSession(
+                            startTime = obj.getLong("startTime"),
+                            endTime = obj.getLong("endTime"),
+                            startLevel = obj.getInt("startLevel"),
+                            endLevel = obj.getInt("endLevel"),
+                            isComplete = obj.getBoolean("isComplete"),
+                            startVoltage = obj.optInt("startVoltage", 0),
+                            endVoltage = obj.optInt("endVoltage", 0),
+                            startTemperature = obj.optInt("startTemperature", 0),
+                            endTemperature = obj.optInt("endTemperature", 0)
+                        )
+                    )
+                }
+            }
+
+            val logsArray = root.optJSONArray("usage_logs")
+            if (logsArray != null) {
+                for (i in 0 until logsArray.length()) {
+                    val obj = logsArray.getJSONObject(i)
+                    logsList.add(
+                        AppUsageLog(
+                            packageName = obj.getString("packageName"),
+                            timestamp = obj.getLong("timestamp"),
+                            foregroundTimeMs = obj.getLong("foregroundTimeMs")
+                        )
+                    )
+                }
+            }
+            sessionsList to logsList
+        } catch (e: Exception) {
+            Log.e(TAG, "Error parsing backup JSON", e)
+            null
         }
     }
 }

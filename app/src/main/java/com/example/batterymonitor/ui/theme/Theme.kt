@@ -16,50 +16,49 @@ import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
 
 private val DarkColorScheme = darkColorScheme(
-    primary = OrangePrimary,
-    onPrimary = Color.Black,
-    primaryContainer = OrangeSecondary,
-    onPrimaryContainer = Color.White,
-    secondary = OrangeSecondary,
-    onSecondary = Color.White,
-    background = Color.Black,
-    surface = DarkGrey,
-    onBackground = Color.White,
-    onSurface = Color.White
+    primary = DarkPrimary,
+    onPrimary = DarkOnPrimary,
+    background = DarkBackground,
+    surface = DarkSurface,
+    surfaceVariant = DarkSurfaceVariant,
+    onBackground = DarkOnSurface,
+    onSurface = DarkOnSurface,
+    secondary = DarkSecondary,
+    tertiary = DarkTertiary,
+    error = DarkError
 )
 
 private val LightColorScheme = lightColorScheme(
-    primary = OrangePrimary,
-    onPrimary = Color.Black,
-    primaryContainer = OrangePrimary.copy(alpha = 0.2f),
-    onPrimaryContainer = OrangeSecondary,
-    secondary = OrangeSecondary,
-    onSecondary = Color.White,
-    background = Color.White,
-    surface = Color.White,
-    onBackground = Color.Black,
-    onSurface = Color.Black
+    primary = LightPrimary,
+    onPrimary = LightOnPrimary,
+    background = LightBackground,
+    surface = LightSurface,
+    surfaceVariant = LightSurfaceVariant,
+    onBackground = LightOnSurface,
+    onSurface = LightOnSurface,
+    secondary = LightSecondary,
+    tertiary = LightTertiary,
+    error = LightError
 )
 
 @Composable
 fun VoltMonitorTheme(
-    darkTheme: Boolean = isSystemInDarkTheme(),
-    // Dynamic color is disabled to maintain brand identity (Orange/Black/Grey)
-    dynamicColor: Boolean = false,
+    appTheme: com.example.batterymonitor.data.pref.AppTheme = com.example.batterymonitor.data.pref.AppTheme.SYSTEM,
     content: @Composable () -> Unit
 ) {
-    val colorScheme = when {
-        dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
-            val context = androidx.compose.ui.platform.LocalContext.current
-            if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
-        }
-        darkTheme -> DarkColorScheme
-        else -> LightColorScheme
+    val darkTheme = when (appTheme) {
+        com.example.batterymonitor.data.pref.AppTheme.LIGHT -> false
+        com.example.batterymonitor.data.pref.AppTheme.DARK -> true
+        com.example.batterymonitor.data.pref.AppTheme.SYSTEM -> isSystemInDarkTheme()
     }
+
+    val colorScheme = if (darkTheme) DarkColorScheme else LightColorScheme
+    
     val view = LocalView.current
     if (!view.isInEditMode) {
         SideEffect {
             val window = (view.context as Activity).window
+            window.statusBarColor = colorScheme.background.toArgb()
             WindowCompat.getInsetsController(window, view).isAppearanceLightStatusBars = !darkTheme
         }
     }

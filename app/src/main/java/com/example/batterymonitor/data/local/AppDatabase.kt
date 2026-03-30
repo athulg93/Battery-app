@@ -21,7 +21,8 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "battery_monitor_database"
                 )
-                    .fallbackToDestructiveMigration()
+                    // We removed fallbackToDestructiveMigration to prevent history loss.
+                    // Proper migrations should be added for version bumps.
                     .build()
                 INSTANCE = instance
                 instance

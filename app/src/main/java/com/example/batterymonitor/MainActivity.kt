@@ -16,7 +16,13 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Menu
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material3.*
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.scale
+import androidx.compose.foundation.clickable
+import androidx.compose.ui.graphics.Brush
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -56,24 +62,42 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    private lateinit var themeManager: com.example.batterymonitor.data.pref.ThemeManager
+
     override fun onCreate(savedInstanceState: Bundle?) {
         val splashScreen = installSplashScreen()
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
         
+        themeManager = com.example.batterymonitor.data.pref.ThemeManager(this)
+        
+        checkUpdateCompletion()
         checkAndRequestPermissions()
 
         setContent {
-            VoltMonitorTheme {
-                MainAppContent()
+            val appTheme by themeManager.themeFlow.collectAsState(initial = com.example.batterymonitor.data.pref.AppTheme.SYSTEM)
+            VoltMonitorTheme(appTheme = appTheme) {
+                MainAppContent(appTheme = appTheme)
             }
         }
+    }
+
+    private fun checkUpdateCompletion() {
+        val prefs = getSharedPreferences("app_prefs", Context.MODE_PRIVATE)
+        val lastVersionCode = prefs.getInt("last_version_code", -1)
+        val currentVersionCode = BuildConfig.VERSION_CODE
+        
+        if (lastVersionCode != -1 && currentVersionCode > lastVersionCode) {
+            Toast.makeText(this, "Volt Monitor successfully updated to ${BuildConfig.VERSION_NAME}!", Toast.LENGTH_LONG).show()
+        }
+        
+        prefs.edit().putInt("last_version_code", currentVersionCode).apply()
     }
 
 
     @OptIn(ExperimentalMaterial3Api::class)
     @Composable
-    fun MainAppContent() {
+    fun MainAppContent(appTheme: com.example.batterymonitor.data.pref.AppTheme) {
         val navController = rememberNavController()
         val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
         val scope = rememberCoroutineScope()
@@ -160,34 +184,53 @@ class MainActivity : ComponentActivity() {
         ModalNavigationDrawer(
             drawerState = drawerState,
             drawerContent = {
-                ModalDrawerSheet {
-                    Surface(
-                        color = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.fillMaxWidth()
+                ModalDrawerSheet(
+                    drawerContainerColor = MaterialTheme.colorScheme.surface,
+                    drawerContentColor = MaterialTheme.colorScheme.onSurface,
+                    drawerShape = RoundedCornerShape(topEnd = 32.dp, bottomEnd = 32.dp)
+                ) {
+                    // Drawer Header with Gradient
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(140.dp)
+                            .background(
+                                Brush.verticalGradient(
+                                    listOf(MaterialTheme.colorScheme.primary, MaterialTheme.colorScheme.primary.copy(alpha = 0.7f))
+                                )
+                            )
+                            .padding(24.dp),
+                        contentAlignment = Alignment.BottomStart
                     ) {
-                        Row(
-                            modifier = Modifier.padding(24.dp).fillMaxWidth(),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
                             com.example.batterymonitor.ui.components.DynamicBatteryLogo(
-                                level = 100, // Drawer logo shows full for branding
-                                modifier = Modifier.size(48.dp)
+                                level = 100,
+                                modifier = Modifier.size(44.dp)
                             )
                             Spacer(Modifier.width(16.dp))
-                            Text(
-                                "Volt Monitor",
-                                style = MaterialTheme.typography.headlineSmall,
-                                fontWeight = FontWeight.ExtraBold,
-                                color = MaterialTheme.colorScheme.onPrimary
-                            )
+                            Column {
+                                Text(
+                                    "Volt Monitor",
+                                    style = MaterialTheme.typography.titleLarge,
+                                    fontWeight = FontWeight.Black,
+                                    color = MaterialTheme.colorScheme.onPrimary
+                                )
+                                Text(
+                                    "V2.0 STITCH EDITION",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.6f),
+                                    letterSpacing = 1.sp
+                                )
+                            }
                         }
                     }
-                    Spacer(Modifier.height(12.dp))
-                    Divider()
-                    Spacer(Modifier.height(16.dp)) // Spacing before items
+                    
+                    Spacer(Modifier.height(16.dp))
+                    
                     items.forEach { item ->
                         NavigationDrawerItem(
-                            label = { Text(item.title) },
+                            label = { Text(item.title.uppercase(), fontSize = 12.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp) },
                             selected = currentRoute == item.route,
                             onClick = {
                                 scope.launch { drawerState.close() }
@@ -198,35 +241,109 @@ class MainActivity : ComponentActivity() {
                                     }
                                 }
                             },
-                            modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding)
+                            icon = {
+                                Icon(
+                                    imageVector = when(item) {
+                                        Screen.Dashboard -> Icons.Default.Info
+                                        Screen.AppUsage -> Icons.Default.Menu
+                                        Screen.History -> Icons.Default.Info
+                                        else -> Icons.Default.Info
+                                    },
+                                    contentDescription = null
+                                )
+                            },
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
+                            shape = RoundedCornerShape(16.dp),
+                            colors = NavigationDrawerItemDefaults.colors(
+                                selectedContainerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.1f),
+                                selectedTextColor = MaterialTheme.colorScheme.primary,
+                                selectedIconColor = MaterialTheme.colorScheme.primary,
+                                unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                                unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
                         )
                     }
 
-                    NavigationDrawerItem(
-                        label = { Text("Check for Updates") },
-                        selected = false,
-                        onClick = {
-                            scope.launch { 
-                                drawerState.close()
-                                checkForUpdates(
-                                    context = this@MainActivity,
-                                    onShowProgress = { isCheckingForUpdate = it },
-                                    onUpdateFound = { updateInfo = it }
-                                )
-                            }
-                        },
-                        modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding)
+                    Spacer(Modifier.height(8.dp))
+                    Divider(modifier = Modifier.padding(horizontal = 24.dp).alpha(0.1f))
+                    Spacer(Modifier.height(16.dp))
+                    
+                    Text(
+                        text = "PREFERENCES",
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Black,
+                        letterSpacing = 2.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                        modifier = Modifier.padding(horizontal = 28.dp, vertical = 8.dp)
                     )
+
+                    // Unified Theme Control Card
+                    Surface(
+                        modifier = Modifier.padding(horizontal = 16.dp),
+                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
+                        shape = RoundedCornerShape(20.dp)
+                    ) {
+                        Column(modifier = Modifier.padding(12.dp)) {
+                            ListItem(
+                                headlineContent = { Text("Dark Theme", fontWeight = FontWeight.Bold, fontSize = 14.sp) },
+                                trailingContent = {
+                                    Switch(
+                                        checked = appTheme == com.example.batterymonitor.data.pref.AppTheme.DARK,
+                                        onCheckedChange = { isChecked ->
+                                            scope.launch {
+                                                themeManager.setTheme(if (isChecked) com.example.batterymonitor.data.pref.AppTheme.DARK else com.example.batterymonitor.data.pref.AppTheme.LIGHT)
+                                            }
+                                        },
+                                        modifier = Modifier.scale(0.8f)
+                                    )
+                                },
+                                colors = ListItemDefaults.colors(containerColor = Color.Transparent)
+                            )
+                            Divider(modifier = Modifier.padding(horizontal = 12.dp).alpha(0.05f))
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable {
+                                        scope.launch {
+                                            themeManager.setTheme(if (appTheme == com.example.batterymonitor.data.pref.AppTheme.SYSTEM) com.example.batterymonitor.data.pref.AppTheme.LIGHT else com.example.batterymonitor.data.pref.AppTheme.SYSTEM)
+                                        }
+                                    }
+                                    .padding(12.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Checkbox(
+                                    checked = appTheme == com.example.batterymonitor.data.pref.AppTheme.SYSTEM,
+                                    onCheckedChange = { isChecked ->
+                                        scope.launch {
+                                            themeManager.setTheme(if (isChecked) com.example.batterymonitor.data.pref.AppTheme.SYSTEM else com.example.batterymonitor.data.pref.AppTheme.LIGHT)
+                                        }
+                                    },
+                                    modifier = Modifier.size(24.dp)
+                                )
+                                Spacer(Modifier.width(12.dp))
+                                Text("Follow System Settings", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                        }
+                    }
                     
                     Spacer(modifier = Modifier.weight(1f))
                     
-                    Text(
-                        text = "Version ${BuildConfig.VERSION_NAME}",
-                        modifier = Modifier.padding(16.dp).align(Alignment.CenterHorizontally),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = Color.Gray
-                    )
-                    Spacer(modifier = Modifier.height(12.dp))
+                    Column(
+                        modifier = Modifier.fillMaxWidth().padding(24.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Text(
+                            text = "Volt Monitor v2.1",
+                            style = MaterialTheme.typography.labelMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
+                        )
+                        Text(
+                            text = "Engineered with Stitch UI",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.primary.copy(alpha = 0.4f)
+                        )
+                    }
                 }
             }
         ) {

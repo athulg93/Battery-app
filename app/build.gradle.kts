@@ -27,8 +27,8 @@ android {
         applicationId = "com.example.batterymonitor"
         minSdk = 34
         targetSdk = 35
-        versionCode = 3
-        versionName = "v1.1"
+        versionCode = 5
+        versionName = "2.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
@@ -113,4 +113,5 @@ dependencies {
     testImplementation("androidx.arch.core:core-testing:2.2.0")
     testImplementation("org.robolectric:robolectric:4.11.1")
     testImplementation("androidx.test:core-ktx:1.5.0")
+    implementation("androidx.datastore:datastore-preferences:1.0.0")
 }
