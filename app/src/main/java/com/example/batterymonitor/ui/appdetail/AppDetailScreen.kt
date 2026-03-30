@@ -179,7 +179,9 @@ fun AppDetailContent(
         V2GlassCard {
             Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier.fillMaxWidth().clickable {
+                        onMetricClick(MetricInfo("Comparative Analysis", "vs " + String.format(Locale.US, "%.1f%%", stats.sevenDayAverageDrain) + " Avg", "Compares today's battery drain against the average drain recorded over the last 7 days to identify unusual consumption."))
+                    },
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
@@ -221,7 +223,12 @@ fun AppDetailContent(
                 Divider(modifier = Modifier.alpha(0.1f))
                 
                 if (hourlyUsage.isNotEmpty()) {
-                    V2ActivityHeatmap(hourlyUsage = hourlyUsage)
+                    V2ActivityHeatmap(
+                        hourlyUsage = hourlyUsage,
+                        modifier = Modifier.clickable {
+                            onMetricClick(MetricInfo("Activity Heatmap", "24-Hour Timeline", "Visualizes the app's activity intensity over the last 24 hours. Darker colored blocks indicate heavy usage during that specific hour."))
+                        }
+                    )
                 }
             }
         }
@@ -288,7 +295,9 @@ fun AppDetailContent(
         )
         
         com.example.batterymonitor.ui.components.V2GlassCard {
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+            Row(modifier = Modifier.fillMaxWidth().clickable {
+                onMetricClick(MetricInfo("Time Split", "Foreground vs Background", "Foreground drain occurs while using the app actively. Background drain happens silently when the app operates behind the scenes (syncing, updates, location)."))
+            }.padding(vertical = 8.dp), horizontalArrangement = Arrangement.SpaceBetween) {
                 TimeStatItem("Foreground", formatTime(stats.foregroundTimeMs), String.format("%.1f%%", stats.foregroundDrainPct))
                 Divider(modifier = Modifier.width(1.dp).height(40.dp).align(Alignment.CenterVertically), color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.1f))
                 TimeStatItem("Background", formatTime(stats.backgroundTimeMs), String.format("%.1f%%", stats.backgroundDrainPct))
@@ -299,7 +308,9 @@ fun AppDetailContent(
         
         // Detailed Resource Usage
         com.example.batterymonitor.ui.components.V2GlassCard {
-            Column {
+            Column(modifier = Modifier.fillMaxWidth().clickable {
+                onMetricClick(MetricInfo("System Resources", String.format(Locale.getDefault(), "%.1f%% CPU", stats.cpuIntensityScore), "CPU utilization represents processing intensity. Wake locks are requests that prevent your device from entering deep sleep, heavily impacting battery."))
+            }.padding(vertical = 8.dp)) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -375,7 +386,12 @@ fun AppDetailContent(
                 Text("Collecting data cycle...", color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f))
             }
         } else {
-            com.example.batterymonitor.ui.components.V2TrendChart(trend = stats.dailyTrend)
+            com.example.batterymonitor.ui.components.V2TrendChart(
+                trend = stats.dailyTrend,
+                modifier = Modifier.clickable {
+                    onMetricClick(MetricInfo("Consumption History", "Daily Trend", "A visual graph of the app's battery drain percentage over the past 7 days. Useful for spotting gradual increases in battery consumption."))
+                }
+            )
         }
         
         Spacer(modifier = Modifier.height(32.dp))
