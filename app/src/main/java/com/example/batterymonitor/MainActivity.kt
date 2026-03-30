@@ -17,6 +17,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.draw.alpha
@@ -325,6 +326,29 @@ class MainActivity : ComponentActivity() {
                             }
                         }
                     }
+
+                    Spacer(Modifier.height(8.dp))
+                    
+                    NavigationDrawerItem(
+                        label = { Text("CHECK FOR UPDATES", fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp) },
+                        selected = false,
+                        onClick = {
+                            scope.launch { drawerState.close() }
+                            checkForUpdates(
+                                this@MainActivity,
+                                { isCheckingForUpdate = it },
+                                { updateInfo = it }
+                            )
+                        },
+                        icon = { Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(20.dp)) },
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
+                        shape = RoundedCornerShape(16.dp),
+                        colors = NavigationDrawerItemDefaults.colors(
+                            unselectedContainerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.05f),
+                            unselectedTextColor = MaterialTheme.colorScheme.primary,
+                            unselectedIconColor = MaterialTheme.colorScheme.primary
+                        )
+                    )
                     
                     Spacer(modifier = Modifier.weight(1f))
                     
