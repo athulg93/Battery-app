@@ -20,6 +20,7 @@ data class BatteryStateUi(
     val temperature: Float = 0f,
     val voltage: Float = 0f,
     val healthEstimate: Float = 100f,
+    val healthReasons: List<String> = emptyList(),
     val chargingWattage: Float = 0f
 )
 
@@ -50,8 +51,10 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
         
         viewModelScope.launch {
             sessions.collect { sessionList ->
+                val healthData = repository.calculateBatteryHealth(sessionList)
                 _uiState.value = _uiState.value.copy(
-                    healthEstimate = repository.calculateBatteryHealth(sessionList)
+                    healthEstimate = healthData.score,
+                    healthReasons = healthData.penaltyReasons
                 )
             }
         }

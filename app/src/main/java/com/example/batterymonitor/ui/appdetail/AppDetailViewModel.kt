@@ -16,7 +16,9 @@ sealed class AppDetailState {
     data class Success(
         val label: String,
         val icon: Drawable?,
-        val stats: DetailedAppStats
+        val stats: DetailedAppStats,
+        val lastChargeTime: Long = 0L,
+        val hourlyUsage: List<Float> = emptyList()
     ) : AppDetailState()
     data class Error(val message: String) : AppDetailState()
 }
@@ -36,8 +38,10 @@ class AppDetailViewModel(application: Application) : AndroidViewModel(applicatio
                 val label = packageManager.getApplicationLabel(info).toString()
                 val icon = packageManager.getApplicationIcon(info)
                 val stats = repository.getDetailedStatsForApp(packageName)
+                val lastCharge = repository.getLastFullChargeTime()
+                val hourly = repository.getHourlyUsageForApp(packageName, System.currentTimeMillis() - 24 * 60 * 60 * 1000)
                 
-                _uiState.value = AppDetailState.Success(label, icon, stats)
+                _uiState.value = AppDetailState.Success(label, icon, stats, lastCharge, hourly)
             } catch (e: Exception) {
                 _uiState.value = AppDetailState.Error("Could not load details for $packageName")
             }

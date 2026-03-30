@@ -16,6 +16,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -30,7 +31,10 @@ import java.util.Locale
 import com.example.batterymonitor.ui.components.V2BentoCard
 import com.example.batterymonitor.ui.components.V2GlassCard
 import com.example.batterymonitor.ui.components.V2TrendChart
+import com.example.batterymonitor.ui.components.V2ActivityHeatmap
 import androidx.compose.foundation.shape.RoundedCornerShape
+import java.text.SimpleDateFormat
+import java.util.Date
 
 @Composable
 fun AppDetailScreen(
@@ -70,6 +74,8 @@ fun AppDetailScreen(
                     label = state.label,
                     icon = state.icon,
                     stats = state.stats,
+                    lastChargeTime = state.lastChargeTime,
+                    hourlyUsage = state.hourlyUsage,
                     onMetricClick = { selectedMetric = it }
                 )
             }
@@ -83,6 +89,8 @@ fun AppDetailContent(
     label: String,
     icon: Drawable?,
     stats: com.example.batterymonitor.data.repository.DetailedAppStats,
+    lastChargeTime: Long = 0L,
+    hourlyUsage: List<Float> = emptyList(),
     onMetricClick: (MetricInfo) -> Unit
 ) {
     val context = LocalContext.current
@@ -117,13 +125,39 @@ fun AppDetailContent(
                     }
                 }
                 Spacer(Modifier.width(16.dp))
-                Column {
+                Column(modifier = Modifier.weight(1f)) {
                     Text(
                         text = label,
-                        fontSize = 22.sp,
-                        fontWeight = FontWeight.Black,
+                        style = MaterialTheme.typography.headlineMedium,
+                        fontWeight = FontWeight.ExtraBold,
                         color = MaterialTheme.colorScheme.onSurface
                     )
+                    
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Surface(
+                            color = MaterialTheme.colorScheme.primary.copy(alpha = 0.1f),
+                            shape = RoundedCornerShape(4.dp),
+                            modifier = Modifier.padding(vertical = 4.dp)
+                        ) {
+                            Text(
+                                text = if (stats.daysOfData >= 3) "ANALYSIS: HIGH CONFIDENCE" else "CALIBRATING DATA",
+                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                                fontSize = 8.sp,
+                                fontWeight = FontWeight.Black,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                        }
+                        
+                        if (lastChargeTime > 0) {
+                            Spacer(Modifier.width(8.dp))
+                            Text(
+                                text = "Since " + SimpleDateFormat("MMM d, HH:mm", Locale.getDefault()).format(Date(lastChargeTime)),
+                                fontSize = 8.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+                            )
+                        }
+                    }
                     Text(
                         text = packageName,
                         fontSize = 11.sp,
@@ -141,9 +175,62 @@ fun AppDetailContent(
 
         Spacer(modifier = Modifier.height(32.dp))
 
+        // Activity Analysis Insights
+        V2GlassCard {
+            Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column {
+                        Text(
+                            text = "COMPARATIVE ANALYSIS",
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Black,
+                            letterSpacing = 2.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+                        )
+                        Spacer(Modifier.height(4.dp))
+                        Text(
+                            text = if (stats.foregroundDrainPct > stats.sevenDayAverageDrain) 
+                                "Using ${String.format(Locale.US, "%.1f", stats.foregroundDrainPct - stats.sevenDayAverageDrain)}% more than average" 
+                                else "Below normal consumption",
+                            style = MaterialTheme.typography.bodySmall,
+                            fontWeight = FontWeight.Bold,
+                            color = if (stats.foregroundDrainPct > stats.sevenDayAverageDrain) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary
+                        )
+                    }
+                    
+                    Column(horizontalAlignment = Alignment.End) {
+                        Text(
+                            text = String.format(Locale.US, "%.1f%%", stats.sevenDayAverageDrain),
+                            fontSize = 18.sp,
+                            fontWeight = FontWeight.Black,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Text(
+                            text = "7-DAY AVG",
+                            fontSize = 8.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
+                        )
+                    }
+                }
+                
+                Divider(modifier = Modifier.alpha(0.1f))
+                
+                if (hourlyUsage.isNotEmpty()) {
+                    V2ActivityHeatmap(hourlyUsage = hourlyUsage)
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(24.dp))
+
         // Metrics Grid (Bento style)
         Text(
-            text = "HARDWARE IMPACT",
+            text = "USAGE RETENTION",
             fontSize = 10.sp,
             fontWeight = FontWeight.Black,
             letterSpacing = 2.sp,

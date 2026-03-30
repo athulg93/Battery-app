@@ -26,6 +26,11 @@ data class BatteryInfo(
     val chargingWattage: Float = 0f
 )
 
+data class BatteryHealthData(
+    val score: Float,
+    val penaltyReasons: List<String> = emptyList()
+)
+
 data class AppUsageSummary(
     val packageName: String,
     val label: String,
@@ -91,25 +96,35 @@ class BatteryRepository(private val application: Application) {
 
     fun getSessions(): Flow<List<ChargeSession>> = database.chargeSessionDao().getAllSessions()
 
-    fun calculateBatteryHealth(sessions: List<ChargeSession>): Float {
-        if (sessions.isEmpty()) return 100f
+    fun calculateBatteryHealth(sessions: List<ChargeSession>): BatteryHealthData {
+        if (sessions.isEmpty()) return BatteryHealthData(100f)
         
         var totalChargePercent = 0f
         var penaltyFactor = 1.0f
+        val penalties = mutableSetOf<String>()
         
         val completedSessions = sessions.filter { it.isComplete }
-        if (completedSessions.isEmpty()) return 100f
+        if (completedSessions.isEmpty()) return BatteryHealthData(100f)
 
         for (session in completedSessions) {
             val chargeDelta = (session.endLevel - session.startLevel).coerceAtLeast(0)
             totalChargePercent += chargeDelta
-            if (session.endTemperature > 450) penaltyFactor += 0.05f
-            if (session.startLevel < 15) penaltyFactor += 0.02f
+            if (session.endTemperature > 450) {
+                penaltyFactor += 0.05f
+                penalties.add("Thermal Stress (Charging above 45°C)")
+            }
+            if (session.startLevel < 15) {
+                penaltyFactor += 0.02f
+                penalties.add("Deep Discharge (Starting below 15%)")
+            }
         }
         
         val cycleCount = totalChargePercent / 100f
         val degradation = cycleCount * 0.05f * penaltyFactor
-        return (100f - degradation).coerceIn(50f, 100f)
+        return BatteryHealthData(
+            score = (100f - degradation).coerceIn(50f, 100f),
+            penaltyReasons = penalties.toList()
+        )
     }
 
     suspend fun getAppUsageSummary(last24h: Long): List<AppUsageSummary> = withContext(Dispatchers.IO) {
@@ -251,6 +266,24 @@ class BatteryRepository(private val application: Application) {
         return (appTime.toFloat() / totalTime) * 100f
     }
     
+    suspend fun getHourlyUsageForApp(packageName: String, since: Long): List<Float> = withContext(Dispatchers.IO) {
+        val logs = database.appUsageDao().getUsageSinceTime(since)
+        val hourlyBuckets = FloatArray(24) { 0f }
+        
+        val calendar = Calendar.getInstance()
+        val now = System.currentTimeMillis()
+        
+        logs.filter { it.packageName == packageName }.forEach { log ->
+            calendar.timeInMillis = log.timestamp
+            val hour = calendar.get(Calendar.HOUR_OF_DAY)
+            // Add normalized value (we'll just use raw ms and then normalize in UI or here)
+            hourlyBuckets[hour] += log.foregroundTimeMs.toFloat()
+        }
+        
+        val maxVal = hourlyBuckets.maxOrNull()?.coerceAtLeast(1f) ?: 1f
+        hourlyBuckets.map { it / maxVal }.toList()
+    }
+
     suspend fun getLastChargeTime(): Long = database.chargeSessionDao().getLastSession()?.startTime ?: 0L
     suspend fun getLastFullChargeTime(): Long = database.chargeSessionDao().getLastFullCharge()?.startTime ?: 0L
 

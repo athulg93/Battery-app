@@ -6,6 +6,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -137,6 +138,40 @@ fun DashboardScreen(
             trend = trendData.ifEmpty { listOf("Now" to 0f) }
         )
         
+        // Health Intelligence Insights
+        if (uiState.healthReasons.isNotEmpty()) {
+            Spacer(modifier = Modifier.height(24.dp))
+            Text(
+                text = "HEALTH INTELLIGENCE",
+                fontSize = 10.sp,
+                fontWeight = FontWeight.Black,
+                letterSpacing = 2.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                modifier = Modifier.align(Alignment.Start).padding(bottom = 12.dp)
+            )
+            
+            com.example.batterymonitor.ui.components.V2GlassCard {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    uiState.healthReasons.forEach { reason ->
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = if (reason.contains("Thermal")) Icons.Default.Warning else Icons.Default.Info,
+                                contentDescription = null,
+                                tint = if (reason.contains("Thermal")) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Spacer(Modifier.width(12.dp))
+                            Text(
+                                text = reason,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                        }
+                    }
+                }
+            }
+        }
+
         Spacer(modifier = Modifier.height(24.dp))
         
         // Live Intelligence Card
