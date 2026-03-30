@@ -120,9 +120,10 @@ object BackupUtils {
         }
     }
 
-    fun parseBackupJson(json: String): Pair<List<ChargeSession>, List<AppUsageLog>>? {
+    fun parseBackupJson(json: String): Triple<List<ChargeSession>, List<AppUsageLog>, Long>? {
         return try {
             val root = JSONObject(json)
+            val backupTime = root.optLong("backup_timestamp", 0L)
             val sessionsList = mutableListOf<ChargeSession>()
             val logsList = mutableListOf<AppUsageLog>()
 
@@ -159,7 +160,7 @@ object BackupUtils {
                     )
                 }
             }
-            sessionsList to logsList
+            Triple(sessionsList, logsList, backupTime)
         } catch (e: Exception) {
             Log.e(TAG, "Error parsing backup JSON", e)
             null

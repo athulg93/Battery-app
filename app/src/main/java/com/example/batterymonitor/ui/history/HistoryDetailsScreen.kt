@@ -34,27 +34,8 @@ fun HistoryDetailsScreen(
     viewModel: HistoryViewModel = viewModel()
 ) {
     val sessions by viewModel.sessions.collectAsState()
-    val restoreStatus by viewModel.restoreStatus.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
-
-    val launcher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
-        uri?.let { viewModel.restoreHistory(it) }
-    }
-
-    LaunchedEffect(restoreStatus) {
-        when (val status = restoreStatus) {
-            is RestoreStatus.Success -> {
-                snackbarHostState.showSnackbar("History successfully synchronized")
-                viewModel.resetRestoreStatus()
-            }
-            is RestoreStatus.Error -> {
-                snackbarHostState.showSnackbar("Synchronization failed: ${status.message}")
-                viewModel.resetRestoreStatus()
-            }
-            else -> {}
-        }
-    }
 
     Scaffold(
         snackbarHost = { SnackbarHost(snackbarHostState) },
@@ -78,17 +59,6 @@ fun HistoryDetailsScreen(
                     letterSpacing = 2.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
                 )
-
-                if (restoreStatus is RestoreStatus.Loading) {
-                    CircularProgressIndicator(modifier = Modifier.size(24.dp))
-                } else {
-                    TextButton(
-                        onClick = { launcher.launch(arrayOf("application/json", "*/*")) },
-                        colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.primary)
-                    ) {
-                        Text("RESTORE BACKUP", fontSize = 10.sp, fontWeight = FontWeight.Black)
-                    }
-                }
             }
 
             if (sessions.isEmpty()) {
@@ -99,12 +69,12 @@ fun HistoryDetailsScreen(
                             color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
                         )
                         Spacer(Modifier.height(16.dp))
-                        Button(
-                            onClick = { launcher.launch(arrayOf("application/json", "*/*")) },
-                            shape = RoundedCornerShape(12.dp)
-                        ) {
-                            Text("Import Previous History")
-                        }
+                        Text(
+                            "You can restore your history from Settings",
+                            color = MaterialTheme.colorScheme.primary,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold
+                        )
                     }
                 }
             } else {

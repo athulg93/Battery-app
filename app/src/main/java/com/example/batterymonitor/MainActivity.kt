@@ -17,7 +17,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Info
-import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.draw.alpha
@@ -106,60 +106,7 @@ class MainActivity : ComponentActivity() {
         val navBackStackEntry by navController.currentBackStackEntryAsState()
         val currentRoute = navBackStackEntry?.destination?.route
         
-        val items = listOf(Screen.Dashboard, Screen.AppUsage, Screen.History)
-
-        var updateInfo by remember { mutableStateOf<UpdateInfo?>(null) }
-        var isCheckingForUpdate by remember { mutableStateOf(false) }
-
-        if (updateInfo != null) {
-            AlertDialog(
-                onDismissRequest = { updateInfo = null },
-                title = { Text("Update Available") },
-                text = { 
-                    Column {
-                        Text("A new version (${updateInfo?.version}) is available. Would you like to download and install it?")
-                        if (updateInfo?.body?.isNotEmpty() == true) {
-                            Spacer(Modifier.height(8.dp))
-                            Text("Whats new:", fontWeight = FontWeight.Bold)
-                            Text(updateInfo!!.body)
-                        }
-                    }
-                },
-                confirmButton = {
-                    TextButton(onClick = {
-                        UpdateManager.downloadAndInstallUpdate(
-                            this@MainActivity,
-                            updateInfo!!.downloadUrl,
-                            "BatteryMonitor_${updateInfo!!.version}.apk"
-                        )
-                        updateInfo = null
-                        Toast.makeText(this@MainActivity, "Download started...", Toast.LENGTH_SHORT).show()
-                    }) {
-                        Text("Download & Install")
-                    }
-                },
-                dismissButton = {
-                    TextButton(onClick = { updateInfo = null }) {
-                        Text("Later")
-                    }
-                }
-            )
-        }
-
-        if (isCheckingForUpdate) {
-            AlertDialog(
-                onDismissRequest = { },
-                confirmButton = { },
-                title = { Text("Checking for Updates") },
-                text = { 
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        CircularProgressIndicator(modifier = Modifier.size(24.dp))
-                        Spacer(Modifier.width(16.dp))
-                        Text("Connecting to GitHub...")
-                    }
-                }
-            )
-        }
+        val items = listOf(Screen.Dashboard, Screen.AppUsage, Screen.History, Screen.Settings)
         
         // Handle back press to close drawer
         if (drawerState.isOpen) {
@@ -172,6 +119,7 @@ class MainActivity : ComponentActivity() {
             Screen.Dashboard.route -> Screen.Dashboard.title
             Screen.AppUsage.route -> Screen.AppUsage.title
             Screen.History.route -> Screen.History.title
+            Screen.Settings.route -> Screen.Settings.title
             else -> ""
         }
         val displayTitle = if (currentRoute?.startsWith("app_detail") == true) {
@@ -247,6 +195,7 @@ class MainActivity : ComponentActivity() {
                                     imageVector = when(item) {
                                         Screen.Dashboard -> Icons.Default.Info
                                         Screen.AppUsage -> Icons.Default.Menu
+                                        Screen.Settings -> Icons.Default.Settings
                                         Screen.History -> Icons.Default.Info
                                         else -> Icons.Default.Info
                                     },
@@ -265,90 +214,7 @@ class MainActivity : ComponentActivity() {
                         )
                     }
 
-                    Spacer(Modifier.height(8.dp))
-                    Divider(modifier = Modifier.padding(horizontal = 24.dp).alpha(0.1f))
-                    Spacer(Modifier.height(16.dp))
-                    
-                    Text(
-                        text = "PREFERENCES",
-                        fontSize = 10.sp,
-                        fontWeight = FontWeight.Black,
-                        letterSpacing = 2.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
-                        modifier = Modifier.padding(horizontal = 28.dp, vertical = 8.dp)
-                    )
-
-                    // Unified Theme Control Card
-                    Surface(
-                        modifier = Modifier.padding(horizontal = 16.dp),
-                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
-                        shape = RoundedCornerShape(20.dp)
-                    ) {
-                        Column(modifier = Modifier.padding(12.dp)) {
-                            ListItem(
-                                headlineContent = { Text("Dark Theme", fontWeight = FontWeight.Bold, fontSize = 14.sp) },
-                                trailingContent = {
-                                    Switch(
-                                        checked = appTheme == com.example.batterymonitor.data.pref.AppTheme.DARK,
-                                        onCheckedChange = { isChecked ->
-                                            scope.launch {
-                                                themeManager.setTheme(if (isChecked) com.example.batterymonitor.data.pref.AppTheme.DARK else com.example.batterymonitor.data.pref.AppTheme.LIGHT)
-                                            }
-                                        },
-                                        modifier = Modifier.scale(0.8f)
-                                    )
-                                },
-                                colors = ListItemDefaults.colors(containerColor = Color.Transparent)
-                            )
-                            Divider(modifier = Modifier.padding(horizontal = 12.dp).alpha(0.05f))
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clickable {
-                                        scope.launch {
-                                            themeManager.setTheme(if (appTheme == com.example.batterymonitor.data.pref.AppTheme.SYSTEM) com.example.batterymonitor.data.pref.AppTheme.LIGHT else com.example.batterymonitor.data.pref.AppTheme.SYSTEM)
-                                        }
-                                    }
-                                    .padding(12.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Checkbox(
-                                    checked = appTheme == com.example.batterymonitor.data.pref.AppTheme.SYSTEM,
-                                    onCheckedChange = { isChecked ->
-                                        scope.launch {
-                                            themeManager.setTheme(if (isChecked) com.example.batterymonitor.data.pref.AppTheme.SYSTEM else com.example.batterymonitor.data.pref.AppTheme.LIGHT)
-                                        }
-                                    },
-                                    modifier = Modifier.size(24.dp)
-                                )
-                                Spacer(Modifier.width(12.dp))
-                                Text("Follow System Settings", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            }
-                        }
-                    }
-
-                    Spacer(Modifier.height(8.dp))
-                    
-                    NavigationDrawerItem(
-                        label = { Text("CHECK FOR UPDATES", fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp) },
-                        selected = false,
-                        onClick = {
-                            scope.launch { drawerState.close() }
-                            checkForUpdates(
-                                this@MainActivity,
-                                { isCheckingForUpdate = it },
-                                { updateInfo = it }
-                            )
-                        },
-                        icon = { Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(20.dp)) },
-                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
-                        shape = RoundedCornerShape(16.dp),
-                        colors = NavigationDrawerItemDefaults.colors(
-                            unselectedContainerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.05f),
-                            unselectedTextColor = MaterialTheme.colorScheme.primary,
-                            unselectedIconColor = MaterialTheme.colorScheme.primary
-                        )
-                    )
+                    Spacer(Modifier.height(32.dp))
                     
                     Spacer(modifier = Modifier.weight(1f))
                     
@@ -434,37 +300,5 @@ class MainActivity : ComponentActivity() {
     private fun startBatteryService() {
         val serviceIntent = Intent(this, BatteryMonitorService::class.java)
         ContextCompat.startForegroundService(this, serviceIntent)
-    }
-
-    private fun checkForUpdates(
-        context: Context,
-        onShowProgress: (Boolean) -> Unit,
-        onUpdateFound: (UpdateInfo) -> Unit
-    ) {
-        val scope = (context as MainActivity).lifecycleScope
-        onShowProgress(true)
-        
-        UpdateManager.checkForUpdates(context, object : UpdateManager.UpdateCallback {
-            override fun onUpdateAvailable(newVersion: String, downloadUrl: String, body: String) {
-                scope.launch {
-                    onShowProgress(false)
-                    onUpdateFound(UpdateInfo(newVersion, downloadUrl, body))
-                }
-            }
-
-            override fun onNoUpdate() {
-                 scope.launch {
-                    onShowProgress(false)
-                    Toast.makeText(context, "You are on the latest version", Toast.LENGTH_SHORT).show()
-                 }
-            }
-
-            override fun onError(message: String) {
-                scope.launch {
-                    onShowProgress(false)
-                    Toast.makeText(context, "Update check failed: $message", Toast.LENGTH_SHORT).show()
-                }
-            }
-        })
     }
 }

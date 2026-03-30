@@ -12,6 +12,7 @@ sealed class Screen(val route: String, val title: String) {
     object Dashboard : Screen("dashboard", "Dashboard")
     object AppUsage : Screen("app_usage", "App Based Usage")
     object History : Screen("history", "Charging History")
+    object Settings : Screen("settings", "Settings")
     object AppDetail : Screen("app_detail/{packageName}", "App Details") {
         fun createRoute(packageName: String) = "app_detail/$packageName"
     }
@@ -35,6 +36,9 @@ fun BatteryNavGraph(
         }
         composable(Screen.History.route) {
             HistoryDetailsScreen()
+        }
+        composable(Screen.Settings.route) {
+            com.example.batterymonitor.ui.settings.SettingsScreen()
         }
         composable(
             route = Screen.AppDetail.route,

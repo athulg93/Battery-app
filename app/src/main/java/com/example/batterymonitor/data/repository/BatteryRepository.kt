@@ -286,6 +286,12 @@ class BatteryRepository(private val application: Application) {
 
     suspend fun getLastChargeTime(): Long = database.chargeSessionDao().getLastSession()?.startTime ?: 0L
     suspend fun getLastFullChargeTime(): Long = database.chargeSessionDao().getLastFullCharge()?.startTime ?: 0L
+    
+    suspend fun getLatestActivityTimestamp(): Long = withContext(Dispatchers.IO) {
+        val lastSession = database.chargeSessionDao().getLastSession()?.endTime ?: 0L
+        val lastUsage = database.appUsageDao().getUsageSinceTime(System.currentTimeMillis() - 365L * 24 * 60 * 60 * 1000).maxOfOrNull { it.timestamp } ?: 0L
+        maxOf(lastSession, lastUsage)
+    }
 
     suspend fun insertSessions(sessions: List<ChargeSession>) = withContext(Dispatchers.IO) {
         database.chargeSessionDao().insertSessions(sessions)
