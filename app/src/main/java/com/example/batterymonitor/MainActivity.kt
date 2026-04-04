@@ -165,7 +165,7 @@ class MainActivity : ComponentActivity() {
                                     color = MaterialTheme.colorScheme.onPrimary
                                 )
                                 Text(
-                                    "V2.1 STITCH EDITION",
+                                    "V2.2 STITCH EDITION",
                                     style = MaterialTheme.typography.labelSmall,
                                     fontWeight = FontWeight.Bold,
                                     color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.6f),
@@ -223,7 +223,7 @@ class MainActivity : ComponentActivity() {
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
                         Text(
-                            text = "Volt Monitor v2.1",
+                            text = "Volt Monitor v2.2",
                             style = MaterialTheme.typography.labelMedium,
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
