@@ -82,10 +82,16 @@ class BatteryRepository(private val application: Application) {
             if (isCharging) {
                 try {
                     val manager = application.getSystemService(Context.BATTERY_SERVICE) as BatteryManager
-                    val currentNow = manager.getLongProperty(BatteryManager.BATTERY_PROPERTY_CURRENT_NOW) // in microamperes
+                    val currentNow = manager.getLongProperty(BatteryManager.BATTERY_PROPERTY_CURRENT_NOW)
                     if (currentNow != Long.MIN_VALUE) {
-                        val currentAmps = currentNow / 1_000_000f
-                        wattage = kotlin.math.abs(currentAmps * voltageV)
+                        val currentNowAbs = kotlin.math.abs(currentNow)
+                        // Heuristic: If current is very small (< 10000), it's overwhelmingly likely returned in Milliamps (mA) rather than Microamps (µA).
+                        val currentAmps = if (currentNowAbs < 10000) {
+                            currentNowAbs / 1000f
+                        } else {
+                            currentNowAbs / 1_000_000f
+                        }
+                        wattage = currentAmps * voltageV
                     }
                 } catch (e: Exception) {}
             }

@@ -107,7 +107,7 @@ fun DashboardScreen(
                 )
                 com.example.batterymonitor.ui.components.V2BentoCard(
                     label = "Power",
-                    value = if (uiState.isCharging && uiState.chargingWattage > 0) 
+                    value = if (uiState.isCharging && uiState.chargingWattage > 0.05f) 
                         String.format(Locale.US, "%.1fW", uiState.chargingWattage) 
                     else if (uiState.isCharging) "Charging" else "Standby",
                     modifier = Modifier.weight(1f),
@@ -118,15 +118,23 @@ fun DashboardScreen(
         
         Spacer(modifier = Modifier.height(32.dp))
         
-        // Consumption Trends
-        Text(
-            text = "POWER DYNAMICS",
-            fontSize = 10.sp,
-            fontWeight = FontWeight.Black,
-            letterSpacing = 2.sp,
-            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
-            modifier = Modifier.align(Alignment.Start).padding(bottom = 12.dp)
-        )
+        // Charge Volume Trends
+        Column(modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp)) {
+            Text(
+                text = "RECENT CHARGE CYCLES",
+                fontSize = 10.sp,
+                fontWeight = FontWeight.Black,
+                letterSpacing = 2.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+            )
+            Text(
+                text = "Tracks how much battery capacity (%) was restored during your last 7 charging sessions.",
+                fontSize = 11.sp,
+                lineHeight = 14.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f),
+                modifier = Modifier.padding(top = 4.dp, end = 24.dp)
+            )
+        }
         
         // Map sessions to trend pairs
         val trendData = sessions.takeLast(7).map { 
@@ -172,9 +180,8 @@ fun DashboardScreen(
             }
         }
 
-        if (uiState.overchargeOccurrences > 0) {
-            Spacer(modifier = Modifier.height(24.dp))
-            Text(
+        Spacer(modifier = Modifier.height(24.dp))
+        Text(
                 text = "OVERCHARGING METRICS",
                 fontSize = 10.sp,
                 fontWeight = FontWeight.Black,
@@ -194,11 +201,11 @@ fun DashboardScreen(
                             text = "Total Occurrences",
                             fontSize = 14.sp,
                             fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.error
+                            color = if (uiState.overchargeOccurrences > 0) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary
                         )
                         Spacer(Modifier.height(4.dp))
                         Text(
-                            text = "${uiState.overchargeOccurrences} times crossed threshold",
+                            text = if (uiState.overchargeOccurrences > 0) "${uiState.overchargeOccurrences} times crossed threshold" else "No overcharging detected",
                             fontSize = 11.sp,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -207,10 +214,10 @@ fun DashboardScreen(
                     val displayTime = if (totalMins > 60) "${totalMins / 60}h ${totalMins % 60}m" else "${totalMins}m"
                     Column(horizontalAlignment = Alignment.End) {
                         Text(
-                            text = displayTime,
+                            text = if (uiState.overchargeOccurrences > 0) displayTime else "0m",
                             fontSize = 22.sp,
                             fontWeight = FontWeight.Black,
-                            color = MaterialTheme.colorScheme.error
+                            color = if (uiState.overchargeOccurrences > 0) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary
                         )
                         Text(
                             text = "TOTAL TIME",
@@ -222,7 +229,6 @@ fun DashboardScreen(
                     }
                 }
             }
-        }
 
         Spacer(modifier = Modifier.height(24.dp))
         
