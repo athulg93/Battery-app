@@ -96,7 +96,12 @@ class BatteryRepository(private val application: Application) {
 
     fun getSessions(): Flow<List<ChargeSession>> = database.chargeSessionDao().getAllSessions()
 
-    fun calculateBatteryHealth(sessions: List<ChargeSession>): BatteryHealthData {
+    fun getOverchargeEventsFlow(): Flow<List<com.example.batterymonitor.data.local.OverchargeEvent>> = database.overchargeDao().getAllEventsFlow()
+
+    fun calculateBatteryHealth(
+        sessions: List<ChargeSession>, 
+        overcharges: List<com.example.batterymonitor.data.local.OverchargeEvent> = emptyList()
+    ): BatteryHealthData {
         if (sessions.isEmpty()) return BatteryHealthData(100f)
         
         var totalChargePercent = 0f
@@ -117,6 +122,16 @@ class BatteryRepository(private val application: Application) {
                 penaltyFactor += 0.02f
                 penalties.add("Deep Discharge (Starting below 15%)")
             }
+        }
+        
+        var totalOverchargeMs = 0L
+        for (event in overcharges) {
+            totalOverchargeMs += event.durationMs
+        }
+        val hoursOvercharged = totalOverchargeMs / (1000f * 60 * 60)
+        if (hoursOvercharged > 0.5f) { // More than 30 mins cumulative triggers penalty
+            penaltyFactor += (hoursOvercharged * 0.02f) // 2% compounded per hour overcharged
+            penalties.add("Overcharging Degradation (Excessive time at 100%)")
         }
         
         val cycleCount = totalChargePercent / 100f

@@ -21,7 +21,9 @@ data class BatteryStateUi(
     val voltage: Float = 0f,
     val healthEstimate: Float = 100f,
     val healthReasons: List<String> = emptyList(),
-    val chargingWattage: Float = 0f
+    val chargingWattage: Float = 0f,
+    val overchargeOccurrences: Int = 0,
+    val totalOverchargeDurationMs: Long = 0L
 )
 
 class DashboardViewModel(application: Application) : AndroidViewModel(application) {
@@ -32,6 +34,9 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
     val uiState: StateFlow<BatteryStateUi> = _uiState.asStateFlow()
 
     val sessions: StateFlow<List<ChargeSession>> = repository.getSessions()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    val overchargeEvents: StateFlow<List<com.example.batterymonitor.data.local.OverchargeEvent>> = repository.getOverchargeEventsFlow()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     init {
@@ -50,11 +55,16 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
         }
         
         viewModelScope.launch {
-            sessions.collect { sessionList ->
-                val healthData = repository.calculateBatteryHealth(sessionList)
+            kotlinx.coroutines.flow.combine(sessions, overchargeEvents) { s, o ->
+                Pair(s, o)
+            }.collect { (sessionList, overchargeList) ->
+                val healthData = repository.calculateBatteryHealth(sessionList, overchargeList)
+                val totalMs = overchargeList.sumOf { it.durationMs }
                 _uiState.value = _uiState.value.copy(
                     healthEstimate = healthData.score,
-                    healthReasons = healthData.penaltyReasons
+                    healthReasons = healthData.penaltyReasons,
+                    overchargeOccurrences = overchargeList.size,
+                    totalOverchargeDurationMs = totalMs
                 )
             }
         }

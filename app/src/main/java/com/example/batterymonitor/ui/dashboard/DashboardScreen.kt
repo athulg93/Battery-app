@@ -172,6 +172,58 @@ fun DashboardScreen(
             }
         }
 
+        if (uiState.overchargeOccurrences > 0) {
+            Spacer(modifier = Modifier.height(24.dp))
+            Text(
+                text = "OVERCHARGING METRICS",
+                fontSize = 10.sp,
+                fontWeight = FontWeight.Black,
+                letterSpacing = 2.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                modifier = Modifier.align(Alignment.Start).padding(bottom = 12.dp)
+            )
+
+            com.example.batterymonitor.ui.components.V2GlassCard {
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column {
+                        Text(
+                            text = "Total Occurrences",
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.error
+                        )
+                        Spacer(Modifier.height(4.dp))
+                        Text(
+                            text = "${uiState.overchargeOccurrences} times crossed threshold",
+                            fontSize = 11.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    val totalMins = uiState.totalOverchargeDurationMs / (1000 * 60)
+                    val displayTime = if (totalMins > 60) "${totalMins / 60}h ${totalMins % 60}m" else "${totalMins}m"
+                    Column(horizontalAlignment = Alignment.End) {
+                        Text(
+                            text = displayTime,
+                            fontSize = 22.sp,
+                            fontWeight = FontWeight.Black,
+                            color = MaterialTheme.colorScheme.error
+                        )
+                        Text(
+                            text = "TOTAL TIME",
+                            fontSize = 9.sp,
+                            fontWeight = FontWeight.Black,
+                            letterSpacing = 1.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                        )
+                    }
+                }
+            }
+        }
+
         Spacer(modifier = Modifier.height(24.dp))
         
         // Live Intelligence Card

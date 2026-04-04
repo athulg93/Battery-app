@@ -30,6 +30,8 @@ class BatteryMonitorService : Service() {
     private var lastLevel: Int = -1
     private var isCharging: Boolean = false
     private var lastNotifiedTempThreshold: Int = 0
+    private var hasNotifiedFullThisSession: Boolean = false
+    private var overchargeStartTime: Long = 0L
 
     private val batteryReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
@@ -113,14 +115,40 @@ class BatteryMonitorService : Service() {
 
         // Trickle charge warning if full and still plugged in
         if (status == BatteryManager.BATTERY_STATUS_FULL && currentlyCharging) {
-             // In a real app we might debounce this so it doesn't spam
-             sendAlertNotification("Battery Full", "Device is at 100%. Unplug to avoid battery wear.")
+             if (!hasNotifiedFullThisSession) {
+                 sendAlertNotification("Battery Full", "Device is at 100%. Unplug to avoid battery wear.")
+                 hasNotifiedFullThisSession = true
+             }
+             if (overchargeStartTime == 0L) {
+                 overchargeStartTime = System.currentTimeMillis()
+             }
+        } else {
+             handleOverchargeEnd()
+        }
+    }
+
+    private fun handleOverchargeEnd() {
+        if (overchargeStartTime > 0) {
+            val elapsed = System.currentTimeMillis() - overchargeStartTime
+            val gracePeriodMs = 5 * 60 * 1000L
+            if (elapsed > gracePeriodMs) {
+                scope.launch {
+                    val event = com.example.batterymonitor.data.local.OverchargeEvent(
+                        timestamp = System.currentTimeMillis(),
+                        durationMs = elapsed
+                    )
+                    database.overchargeDao().insertEvent(event)
+                }
+            }
+            overchargeStartTime = 0L
         }
     }
 
     private fun handlePowerConnected() {
         isCharging = true
         lastNotifiedTempThreshold = 0
+        hasNotifiedFullThisSession = false
+        overchargeStartTime = 0L
         Log.d("BatteryMonitor", "Power Connected - Starting Session")
         
         val intent = registerReceiver(null, IntentFilter(Intent.ACTION_BATTERY_CHANGED))
@@ -149,6 +177,7 @@ class BatteryMonitorService : Service() {
 
     private fun handlePowerDisconnected(lastIntent: Intent) {
         isCharging = false
+        handleOverchargeEnd()
         Log.d("BatteryMonitor", "Power Disconnected - Ending Session")
         
         val intent = registerReceiver(null, IntentFilter(Intent.ACTION_BATTERY_CHANGED))

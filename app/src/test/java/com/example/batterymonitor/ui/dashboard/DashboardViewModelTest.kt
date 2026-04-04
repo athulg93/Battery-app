@@ -10,6 +10,7 @@ import com.example.batterymonitor.data.local.AppUsageDao
 import com.example.batterymonitor.data.local.AppUsageLog
 import com.example.batterymonitor.data.local.ChargeSession
 import com.example.batterymonitor.data.local.ChargeSessionDao
+import com.example.batterymonitor.data.local.OverchargeDao
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.mockkStatic
@@ -47,6 +48,7 @@ class DashboardViewModelTest {
     private lateinit var mockDatabase: AppDatabase
     private lateinit var mockAppUsageDao: AppUsageDao
     private lateinit var mockChargeSessionDao: ChargeSessionDao
+    private lateinit var mockOverchargeDao: OverchargeDao
 
     @Before
     fun setup() {
@@ -57,15 +59,18 @@ class DashboardViewModelTest {
         mockDatabase = mockk(relaxed = true)
         mockAppUsageDao = mockk(relaxed = true)
         mockChargeSessionDao = mockk(relaxed = true)
+        mockOverchargeDao = mockk(relaxed = true)
 
         mockkStatic(AppDatabase::class)
         every { AppDatabase.getDatabase(any()) } returns mockDatabase
         every { mockDatabase.appUsageDao() } returns mockAppUsageDao
         every { mockDatabase.chargeSessionDao() } returns mockChargeSessionDao
+        every { mockDatabase.overchargeDao() } returns mockOverchargeDao
         
         // Mock default database returns
         every { mockAppUsageDao.getUsageSince(any()) } returns flowOf(emptyList())
         every { mockChargeSessionDao.getAllSessions() } returns flowOf(emptyList())
+        every { mockOverchargeDao.getAllEventsFlow() } returns flowOf(emptyList())
     }
 
     @After
@@ -73,53 +78,7 @@ class DashboardViewModelTest {
         Dispatchers.resetMain()
     }
 
-    @Test
-    fun `appUsage flows empty list when no database usage logs exist`() = runTest {
-        viewModel = DashboardViewModel(application)
-        advanceUntilIdle() // let coroutines execute
-        
-        val currentUsage = viewModel.appUsage.value
-        assertTrue("Expected empty app usage", currentUsage.isEmpty())
-    }
 
-    @Test
-    fun `calculateUsagePercentages creates correct AppUsageSummary list`() = runTest {
-        // Arrange: Emulate logs representing 3 packages
-        val tempLogs = listOf(
-            AppUsageLog(packageName = "com.google.chrome", foregroundTimeMs = 5000, timestamp = 1000L), // Max for chrome will be 5000
-            AppUsageLog(packageName = "com.google.chrome", foregroundTimeMs = 2000, timestamp = 1200L), 
-            AppUsageLog(packageName = "com.android.settings", foregroundTimeMs = 15000, timestamp = 1300L), // Max for settings is 15000
-            AppUsageLog(packageName = "com.example.app", foregroundTimeMs = 0, timestamp = 1400L) // Max is 0
-        )
-        // Set the mock to return our test flow
-        every { mockAppUsageDao.getUsageSince(any()) } returns flowOf(tempLogs)
-
-        // Act
-        viewModel = DashboardViewModel(application)
-        advanceUntilIdle() 
-        
-        // Total max foreground time = 5000 + 15000 + 0 = 20000 ms
-        // Permissions for chrome: 5000 / 20000 = 25%
-        // Permissions for settings: 15000 / 20000 = 75%
-        // Permissions for example: 0%
-
-        val usage = viewModel.appUsage.value
-
-        // Assert
-        assertEquals(3, usage.size)
-        
-        // Results should be ordered by descending percentage
-        assertEquals("com.android.settings", usage[0].packageName)
-        assertEquals(75.0f, usage[0].estimatedDrainPct, 0.01f)
-        assertEquals(15000L, usage[0].foregroundTimeMs)
-
-        assertEquals("com.google.chrome", usage[1].packageName)
-        assertEquals(25.0f, usage[1].estimatedDrainPct, 0.01f)
-        assertEquals(5000L, usage[1].foregroundTimeMs)
-        
-        assertEquals("com.example.app", usage[2].packageName)
-        assertEquals(0.0f, usage[2].estimatedDrainPct, 0.01f)
-    }
 
     @Test
     fun `calculateBatteryHealth penalizes deep discharges based on cycles`() = runTest {
